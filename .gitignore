@@ -1,0 +1,6 @@
+/.bundle/
+/log/
+/tmp/
+/.vscode/
+/.idea/
+*.gem

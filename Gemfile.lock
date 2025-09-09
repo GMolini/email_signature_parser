@@ -1,0 +1,47 @@
+PATH
+  remote: .
+  specs:
+    email_signature_parser (0.1.0)
+      facets
+      mail
+      ox
+      phone
+      public_suffix
+      ruby_postal
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    bigdecimal (3.2.3)
+    date (3.4.1)
+    facets (3.1.0)
+    mail (2.8.1)
+      mini_mime (>= 0.1.1)
+      net-imap
+      net-pop
+      net-smtp
+    mini_mime (1.1.5)
+    net-imap (0.5.10)
+      date
+      net-protocol
+    net-pop (0.1.2)
+      net-protocol
+    net-protocol (0.2.2)
+      timeout
+    net-smtp (0.5.1)
+      net-protocol
+    ox (2.14.23)
+      bigdecimal (>= 3.0)
+    phone (1.2.3)
+    public_suffix (6.0.2)
+    ruby_postal (1.0.1)
+    timeout (0.4.3)
+
+PLATFORMS
+  x86_64-linux
+
+DEPENDENCIES
+  email_signature_parser!
+
+BUNDLED WITH
+   2.4.14
