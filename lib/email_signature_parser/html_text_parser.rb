@@ -2,11 +2,10 @@ module EmailSignatureParser
   class HtmlTextParser < ::Ox::Sax
     attr_reader :parsed_text
 
-    def initialize(include_links=true)
+    def initialize()
       @parsed_text = ''
       @discard = false
       @current_element = ''
-      @include_links = include_links
 
       @current_list_index = -1
       @lists = []
@@ -48,8 +47,7 @@ module EmailSignatureParser
         }
       end
 
-      if name == :a && @include_links
-        @parsing_link = true
+      if name == :a && @parsing_link == true
         @link_text = ""
         @link_href = ""
       end
@@ -68,9 +66,11 @@ module EmailSignatureParser
         @parsed_text << "\n"
       end
 
-      if name == :a && @include_links
+      if name == :a
         @parsed_text << "<a href=\"#{@link_href}\">#{@link_text}</a>" #leave links in html format
         @parsing_link = false
+        @link_text = ""
+        @link_href = ""
       end
 
       if name == :li
@@ -86,7 +86,8 @@ module EmailSignatureParser
     end
 
     def attr(name, value)
-      if (@include_links && @current_element == :a && name == :href)
+
+      if (@current_element == :a && name == :href)
         @link_href << value
       end
 
@@ -138,13 +139,13 @@ module EmailSignatureParser
         if value.include?("-----------------------------")
           @parsed_text << "\n-------------------------------------------------------------------------------------------------------------------------------------------------\n"
         else
-          @parsed_text << "#{value}"
+          @parsed_text << value
         end
       end
     end
 
-    def postprocess
-      
+    def postprocess()
+
       # remove linefeeds (\r\n and \r -> \n)
       @parsed_text.gsub!(/\r\n?/, "\n")
 
@@ -153,15 +154,9 @@ module EmailSignatureParser
       @parsed_text.gsub!(/\n[\t]+/, "\n") # space at start of lines
       @parsed_text.gsub!(/[ \t]+\n/, "\n") # space at end of lines
 
-      # no more than two consecutive newlines
-      @parsed_text.gsub!(/[\n]{3,}/, "\n\n")
 
-      # the word messes up the parens
-      @parsed_text.gsub!(/\(([ \n])(http[^)]+)([\n ])\)/) do |_s|
-        ($1 == "\n" ? $1 : '') + '( ' + $2 + ' )' + ($3 == "\n" ? $1 : '')
-      end
+      @parsed_text = @parsed_text.split("\n").map(&:strip).join("\n") # strip lines
 
-      @parsed_text.strip
     end
 
     def roman_numeral(number)

@@ -1,5 +1,9 @@
+# encoding: utf-8
+
 module EmailSignatureParser
+
   class Parser
+
     SOCIAL_MEDIA_URLS = ['instagram', 'twitter', 'facebook', 'linkedin', 'youtube', 'tiktok', 'bsky']
 
     PHONES_TO_COUNTRY = {"1"=>"US/CA", "7"=>"KZ", "20"=>"EG",  "27"=>"ZA",  "30"=>"GR",  "31"=>"NL",  "32"=>"BE",  "33"=>"FR",  "34"=>"ES",  "36"=>"HU", "39"=>"IT",
@@ -22,13 +26,20 @@ module EmailSignatureParser
     JOB_TITLES = YAML.load_file(
       File.expand_path('../../../lib/email_signature_parser/data/job_titles/titles.yaml', __FILE__), symbolize_names: true
     )
-
-    
+    MEETING_DOMAINS = [
+      /zoom\.us/i,
+      /teams\.microsoft\.com/i,
+      /meet\.google\.com/i,
+      /webex\.com/i,
+      /gotomeeting\.com/i,
+      /ringcentral\.com/i
+    ]
     def initialize
       @signature_sentences = []
       @sentences = []
     end
 
+    # Calculates the percentage of digits in a text, ignoring spaces and HTML links.
     def get_digits_percentage(text)
       text = text.gsub(/<a[^>]*>|<\/a>/, '') #remove links before counting digits
       total_digits = text.count('0123456789')
@@ -41,6 +52,7 @@ module EmailSignatureParser
       return {'total': total_digits, 'pct': (total_digits.to_f / total_chars).round(2)}
     end
 
+    # Merges small strings in an array to avoid single-character elements, useful for name parsing.
     def merge_small_strings(array)
 
       out_array = []
@@ -59,8 +71,8 @@ module EmailSignatureParser
             array = array[0..array.size - 2] + [last_items.join("")]
           end
         end
+
         array.each_slice(2) do |slice|
-          
           should_merge = slice.reduce(false){|acc, val| val.size == 1 || acc}
 
           if should_merge
@@ -78,46 +90,81 @@ module EmailSignatureParser
       out_array
     end
 
+    def meeting_email?(email_body)
+      MEETING_DOMAINS.any? { |regex| email_body =~ regex }
+    end
+
+
     def get_signature_sentences(name, email_address, email_body)
 
       email_sentences = email_body.split(/\t|\n|\r/).map{|s| s.strip}
 
-      found_name_index = email_sentences.size
-
-      foundContent = false
+      signature_start_index = email_sentences.size
       
       first_consecutive_carriage_returns_index = -1
+      consecutive_carriages_found = []
 
-      email_sentences.each_with_index do |sentence, index| 
-        if sentence == ""
-          if foundContent == false
-            next
-          else
-            first_consecutive_carriage_returns_index = index
-            break
+      consecutive_return_carriage = 0
+      foundContent = false
+
+      # Find the first consecutive empty lines that come after some content.
+      email_sentences.each_with_index do |sentence, index|
+
+        if !foundContent
+          if sentence.split(" ").size > 2
+            foundContent = true
           end
+          next
+        end
+          
+        if sentence == ""
+          # empty chars are breaks 
+          consecutive_return_carriage += 1
         else
-          foundContent = true
+          if consecutive_return_carriage >= 2
+            consecutive_carriages_found << index - 1
+          end
+          consecutive_return_carriage = 0
         end
       end
+
+      if consecutive_return_carriage >= 2
+        consecutive_carriages_found << email_sentences.index(sentence) - 1
+      end
+
+      if consecutive_carriages_found.size == 0
+        # No consecutive carriages found, assume no signature
+        return
+      end
+
+      first_consecutive_carriage_returns_index = consecutive_carriages_found.first || -1
 
       @sentences = []
 
       splitted_name = []
       if name.present?
-        splitted_name = merge_small_strings(name.split("@").first.downcase.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').split(" "))
+        splitted_name = merge_small_strings(name.downcase.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').split(" "))
       elsif email_address.present?
+        # No name provided, try to extract from email address, in case email is like jdoe@email.com or john.doe@email.com
         splitted_name = merge_small_strings(email_address.split("@").first.downcase.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').split(" "))
       end
-      found_name_index = email_sentences.size
+
+      signature_start_index = -1
+      found_email_index = -1
+      found_name_index = -1
       email_sentences.each_with_index do |sentence, index|
         @sentences << { isSignature: false , doc: nil, type: 'unknown' }
-        if (sentence.include?("@") || sentence.include?("http") || sentence.include?("www"))
+        if (sentence.include?("http") || sentence.include?("www") || index < first_consecutive_carriage_returns_index)
+          # If the sentence contains an email or link, or is before the first long break, dont even bother analyzing it
           next
         end
 
-        sentence_words = sentence.downcase.gsub(/[^\w\s\.]/, ' ').gsub(/\s+/, ' ').split(" ") #Leave dots in sentence words. is to prevent splitting usernames like name.surname34
-
+        downcased_sentence = sentence.downcase
+        sentence_words = downcased_sentence.gsub(/[^\w\s\.]/, ' ').gsub(/\s+/, ' ').split(" "
+          ).filter{|w| w.size < 15}
+        #Leave dots in sentence words. is to prevent splitting usernames like name.surname34
+        #Remove words longer than 15 chars, as they are unlikely to be names
+      
         if sentence_words.size < 8 && sentence_words.size > 0
           similarities = []
           splitted_name.each do |splitted_name_word|
@@ -125,16 +172,35 @@ module EmailSignatureParser
           end
           
           sim_max = similarities.max
-          if sim_max.present? && sim_max > 0.7 && index >= first_consecutive_carriage_returns_index
+          if sim_max.present? && sim_max > 0.7
+            signature_start_index = index
             found_name_index = index
           end
+        end
+
+        if (found_email_index == - 1 && downcased_sentence.include?(email_address))
+          found_email_index = index
+        end
+      end
+
+      if signature_start_index == -1
+        if found_email_index == -1
+          # No name or email found, assume no signature
+          return
+        end
+
+        # Lets try and find the name based on the email index
+        # Get closest consecutive carriage return index
+        closest_consecutive_index = consecutive_carriages_found.select { |i| i < found_email_index }.max
+        if (closest_consecutive_index - found_email_index).abs < 3
+          signature_start_index = closest_consecutive_index + 1
         end
       end
 
       signature_end_index = -1
 
       email_sentences.each_with_index do |sentence, index|
-        if index >= found_name_index 
+        if index >= signature_start_index 
           sentence_no_links = sentence.gsub(/<a href(.*?)\/a>/, '')
           if (sentence_no_links.count('*') > 5 || sentence_no_links.count('-') > 5 || sentence_no_links.size >= 150)
             signature_end_index = index
@@ -149,7 +215,7 @@ module EmailSignatureParser
           sentence[:type] = 'name'
         end
 
-        if index >= found_name_index && (signature_end_index == -1 || index < signature_end_index)
+        if index >= signature_start_index && (signature_end_index == -1 || index < signature_end_index)
           sentence[:isSignature] = true
           sentence[:doc] = email_sentences[index].strip
           sentence[:digits_pct] = get_digits_percentage(email_sentences[index])
@@ -309,10 +375,15 @@ module EmailSignatureParser
             end
 
             
-            only_digits = phone_text.gsub(/[^\+|\d|\s\.|\(|\)]/, '').gsub(/(\+\s+\+)|(\++)/, '+').gsub(/\s+/, ' ').strip
+            digits = phone_text.gsub(/[^\+|\d|\s\.|\(|\)]/, '').gsub(/(\+\s+\+)|(\++)/, '+').gsub(/\s+/, ' ').strip
+            
+            if digits.gsub(/[^\d]/, '').size > 15
+              # Too long to be a phone number, skip
+              next
+            end
 
             begin
-              parsed_number = Phoner::Phone.parse(only_digits)
+              parsed_number = Phoner::Phone.parse(digits)
               phones << {
                 type: phone_type,
                 phone_number: parsed_number.format(:europe),
@@ -321,7 +392,7 @@ module EmailSignatureParser
             rescue Exception => e
               phones << {
                 type: phone_type,
-                phone_number: only_digits, #remove multiple + signs.
+                phone_number: digits, #remove multiple + signs.
                 country: ''
               }
             end
@@ -430,55 +501,77 @@ module EmailSignatureParser
       }
     end
 
-    def parse_signature(name, email_address, email_body, id=nil)
+    def parse_signature(name, email_address, email_body)
 
-      t1 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @signature_sentences = []
       @sentences = []
 
-      get_signature_sentences(name,email_address, email_body)
+      get_signature_sentences(name, email_address, email_body)
+
+      address = get_address()
+      phones = get_phones()
+      links = get_links()
+      job_title = get_job_title()
+
+      parsed_name = name
+
+      if parsed_name.blank?
+        # Try to extract name from the first two sentences of the signature
+        @signature_sentences[0..1].filter{|s| s[:type] == 'unknown'}.each do |sentence|
+          sentence_words = sentence[:doc].split(" ")
+          if sentence_words.size > 1 && sentence_words.size < 4 && sentence_words.reduce(true){|acc, val| val.size < 15 && acc}
+            parsed_name = sentence_words.map{|n| n.capitalize}.join(" ")
+          end
+        end
+      end
+
 
       parsed_data = {
-        name: name,
+        name: parsed_name,
         email_address: email_address,
-        address: get_address(),
-        phones: get_phones(),
-        links: get_links(),
-        job_title: get_job_title(),
+        address: address,
+        phones: phones,
+        links: links,
+        job_title: job_title,
         text: @signature_sentences.map{|sentence| sentence[:doc]}.join("\n"),
         company_name: get_company_name(email_address)
       }
 
-      t2 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       @signature_sentences = []
       @sentences = []
 
       return parsed_data
     end
 
-    def parse_raw_html(raw_html)
-      
-      content = raw_html
-      charset_match = content.match(/<meta.*?charset=["']?([^"']+)/i)
-      charset = charset_match[1] if charset_match
-    
-      if !charset.present? || Encoding.find(charset).nil?
-        charset = Encoding::ASCII_8BIT.to_s
+    def split_in_threads(text)
+
+      # Regex for reply markers. Handles English and Spanish.
+      marker_regex = /(De:\s.+@+.+)|(From:\s.+@+.+)/i
+
+      marker_indexes = text.enum_for(:scan, marker_regex).map { Regexp.last_match.begin(0) }
+      messages = []
+      last_index = 0
+
+      marker_indexes.each do |marker_index|
+        messages << text[last_index...marker_index].strip
+        last_index = marker_index
       end
 
-      if charset.downcase == "windows-1258"
-        charset = "Windows-1252" # Seems its a bug in ruby. https://github.com/mikel/mail/issues/544
+      if last_index < text.size
+        messages << text[last_index..].strip
       end
 
-      #Files from readpst are written in UTF-8, but the content inside might contain another charset
-      #We need to convert it to UTF-8
-      
-      content.encode!('UTF-8', charset, invalid: :replace, undef: :replace, replace: '' ).force_encoding(Encoding::UTF_8)
-      content = content[/<html.*<\/html>/m]
+      return messages
+    end
 
-      content.encode!('UTF-8', charset, invalid: :replace, undef: :replace, replace: '' ).force_encoding(Encoding::UTF_8)
+    def parse_email_html(raw_html)
+      content = raw_html[/<html.*<\/html>/m]
 
-      text_handler = HtmlTextParser.new
+      # Gets only the html part of the email
+      if content.nil?
+        raise "No HTML content found"
+      end
+
       options = {
         symbolize: true,
         skip: :skip_white,
@@ -487,25 +580,130 @@ module EmailSignatureParser
         effort: :tolerant,
       }
       input = StringIO.new(content)
+      text_handler = HtmlTextParser.new()
+ 
       Ox.sax_html(text_handler, input, options)
       text_handler.postprocess
+
       return text_handler.parsed_text
+    end
+
+    def extract_name_and_email(from)
+      name = ""
+      email_address = ""
+
+      if from.include?("<") && from.include?(">")
+        # From likely to include name and email address Name <email@example.com>
+        name = from.split("<").first.strip
+        email_address = from.match(/<(.+?)>/)&.captures&.first || ""
+      else
+        email_address = from.strip
+      end
+
+      splitted_name = name.split(" ")
+      if splitted_name.any?{|n| n.size > 15}
+        # Name likely to be invalid, as it contains very long words
+        # There are sometimes funny names in the from header, like: "=?utf-8?B?TWlrZSBCcm93bmxlYWRlciBlbiBUZWFtcw==?=" <noreply@emeaemail.teams.microsoft.com>
+        name = ""
+      end
+
+      return name, email_address.downcase
     end
 
     def parse_from_file(file_path)
 
       m = Mail.read(file_path)
 
+      html_part = ""
+      text_part = m.text_part ? m.text_part.decode_body : ""
+      encoding = nil
+      if m.html_part.present? 
+        
+        if m.html_part.content_type_parameters && m.html_part.content_type_parameters['charset'].present?
+          encoding = m.html_part.content_type_parameters['charset']
+        elsif m.html_part.charset.present?
+          encoding = m.html_part.charset
+        end
+          
+        if encoding.present?
+          html_part = m.html_part.decode_body.force_encoding(encoding)
+        else
+          html_part = m.html_part.decode_body.force_encoding('UTF-8')
+        end
+        html_part = html_part.encode('UTF-8')
+      else
+        # First attempt to get encoding from the raw source, mail gem does not correctly recognize the charset sometimes
+        encoding = m.raw_source[/charset="([^"]+)"/, 1]
+        unless encoding.present?
+          if m.content_type_parameters && m.content_type_parameters['charset'].present?
+            encoding = m.content_type_parameters['charset']
+          elsif m.charset.present?
+            encoding = m.charset
+          end
+        end
+
+        if encoding.present?
+          html_part = m.decode_body.force_encoding(encoding)
+        else
+          html_part = m.decode_body.force_encoding('UTF-8')
+        end
+
+        html_part = html_part.encode('UTF-8')
+
+      end
+
       from = m.header["From"]&.field&.value
       unless from.present?
         raise "No From field in email"
       end
 
-      name = from.split("<").first.strip if from.present?
-      email_address = from.match(/<(.+?)>/)&.captures&.first || from.strip
+      name, email_address = extract_name_and_email(from)
 
-      File.write("test_parsed.txt", parse_raw_html(m.body.to_s))
-      parse_signature(name, email_address.downcase, parse_raw_html(m.body.to_s))
+      if html_part.present?
+        if meeting_email?(m.body.decoded)
+          raise "Meeting email detected, no signature to parse"
+        end
+
+        text_part = parse_email_html(html_part)
+      end
+      unless text_part.present?
+        raise "No email body"
+      end
+
+     # basename = File.basename(file_path)
+     # File.write("test_output_#{basename}.txt", text_part)
+
+      messages = split_in_threads(text_part)
+
+      # Only parse the first message in the thread, as its the most recent one and the one sent by the from address
+      parse_signature(name, email_address.downcase, messages.first)
+    end
+
+    def parse_from_html(from, email_html_body)
+      unless from.present?
+        raise "No from provided"
+      end
+
+      unless email_html_body.present?
+        raise "No email body provided"
+      end
+
+      name, email_address = extract_name_and_email(from)
+      parsed_text = parse_email_html(email_html_body)
+      messages = split_in_threads(parsed_text)
+
+      parse_signature(name, email_address.downcase, messages.first)
+    end
+
+    def parse_from_text(from, email_body)
+      unless from.present?
+        raise "No from provided"
+      end
+
+      name, email_address = extract_name_and_email(from)
+      messages = split_in_threads(email_body)
+
+      parse_signature(name, email_address.downcase, messages.first)
     end
   end
 end
