@@ -12,6 +12,7 @@ require 'cgi'
 
 require_relative "email_signature_parser/parser"
 require_relative "email_signature_parser/html_text_parser"
+require_relative "email_signature_parser/utils"
 
 module EmailSignatureParser
   def self.from_file(file_path)

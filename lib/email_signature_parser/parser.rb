@@ -27,13 +27,30 @@ module EmailSignatureParser
       File.expand_path('../../../lib/email_signature_parser/data/job_titles/titles.yaml', __FILE__), symbolize_names: true
     )
 
+    JOB_ACRONYMS = YAML.load_file(
+      File.expand_path('../../../lib/email_signature_parser/data/job_titles/acronyms.yaml', __FILE__), symbolize_names: true
+    )
+
     MEETING_DOMAINS = [
-      /zoom\.us/i,
+      /zoom\./i,
       /teams\.microsoft\.com/i,
       /meet\.google\.com/i,
       /webex\.com/i,
       /gotomeeting\.com/i,
       /ringcentral\.com/i
+    ]
+
+    COMMON_EMAIL_DOMAINS = [
+      'gmail.com', 
+      'yahoo.', # includes yahoo.com, yahoo.co.uk, etc
+      'hotmail.', # includes hotmail.com, hotmail.co.uk, etc
+      'outlook.com', 
+      'aol.com', 
+      'icloud.com', 
+      'mail.com', 
+      'gmx.', 
+      'protonmail.com', 
+      'zoho.com'
     ]
 
     def initialize
@@ -120,7 +137,6 @@ module EmailSignatureParser
           #Discard long words (cant be a name) and words with digits
           filtered_words = sentence_words.filter{|w| w.size < 15 && !w.match?(/\d/)}
 
-          p " Possible names: #{filtered_words}"
           splitted_name.each do |splitted_name_word|
             similarities << filtered_words.map {|word| word.similarity(splitted_name_word)}.max
           end
@@ -227,7 +243,7 @@ module EmailSignatureParser
         if index >= signature_start_index && (signature_end_index == -1 || index < signature_end_index)
           sentence[:isSignature] = true
           sentence[:doc] = email_sentences[index].strip
-          sentence[:digits_pct] = Utils.get_digits_percentage(email_sentences[index])
+          sentence[:digits_count] = email_sentences[index].count('0123456789')
         end
       end
 
@@ -244,6 +260,10 @@ module EmailSignatureParser
       streetIndex = -1
 
       @signature_sentences.each_with_index do |sentence, index|
+        if sentence[:type] != 'unknown'
+          next
+        end
+
         address_parts = {
           house: 0,
           house_number: 0,
@@ -259,10 +279,6 @@ module EmailSignatureParser
         
 
         @signature_sentences[index][:address_parts] = address_parts
-        if (sentence[:digits_pct][:total] > 7 && sentence[:digits_pct][:pct] > 0.4)
-          #Too many digits, assume its a phone number and not an address
-          next
-        end
 
         if (sentence[:doc].include?("@") || sentence[:doc].include?("www") || sentence[:doc].include?("http"))
           next
@@ -302,6 +318,9 @@ module EmailSignatureParser
       end
 
       @signature_sentences.each_with_index do |sentence, index|
+        if sentence[:type] != 'unknown'
+          next
+        end
 
         if (cityOrStateIndex > 0 && 
           (@signature_sentences[index][:address_parts][:road] > 0  || 
@@ -328,11 +347,8 @@ module EmailSignatureParser
       end
         
       total_address_count = 0
-      @signature_sentences.each do |sentence|
-        if sentence[:type] == 'address'
-          total_address_count += sentence[:doc].size
-        end
-      end
+
+      @signature_sentences.filter{|s| s[:type] == 'address'}.map{|s| total_address_count += s[:doc].size}
       if (total_address_count > 150)
         return ""
       end
@@ -354,57 +370,82 @@ module EmailSignatureParser
     def get_phones
       phones = []
       @signature_sentences[1..]&.each_with_index do |sentence, index|
-        if sentence[:digits_pct][:total] > 7 && sentence[:digits_pct][:pct] > 0.4
-          @signature_sentences[index+1][:type] = 'phone'
-          phone_texts = sentence[:doc].split(/[\|●]/)
+        possible_phones = []
 
-          phone_texts.each do |phone_text|
-            match_before_number = phone_text.match(/.*?:|[tpmd]\./)
+        max_consecutive_digits = Utils.max_consecutive_digits(sentence[:doc])
 
-            phone_type = 'Phone'
-            unless match_before_number.nil?
-              match_text = match_before_number[0].downcase()
-              if match_text.include?('m:') || match_text.include?('mobile') || match_text.include?('movil') || 
-                match_text.include?('móvil') || match_text.include?('c:') || match_text.include?('cell')
+        if max_consecutive_digits < 8 || max_consecutive_digits > 15
+          # Too few or too many consecutive digits to be a phone number, skip
+          next
+        end
+
+        phone_texts = sentence[:doc].split(/[\|●]/) #Sometimes multiple phones are in the same line separated by | or ●
+
+        @signature_sentences[index+1][:type] = 'phone'
+        phone_texts = sentence[:doc].split(/[\|●]/)
+
+        phone_texts.each do |phone_text|
+
+          if phone_text.include?("<a href")
+            #Phone is inside a link. Extract only text.
+            phone_text = phone_text.gsub(/<a[^>]*>|<\/a>/, '')
+          end
+
+          match_before_number = phone_text.match(/.*?:|[tpmd]\./)
+
+          phone_type = 'Phone'
+          unless match_before_number.nil?
+            match_text = match_before_number[0].downcase()
+            if match_text.include?('m:') || match_text.include?('mobile') || match_text.include?('movil') || 
+              match_text.include?('móvil') || match_text.include?('c:') || match_text.include?('cell')
+              phone_type = 'Mobile'
+            elsif match_text.include?('o:') || match_text.include?('office') || match_text.include?('oficina')
+              phone_type = 'Office'
+            elsif match_text.include?('f:') || match_text.include?('fax')
+              phone_type = 'Fax'
+            elsif match_text.include?('direct') && match_text.include?("line") || match_text.include?('d:')
+              phone_type = 'Direct Line'
+            end
+
+            phone_text = phone_text.gsub(match_text, '')
+          end
+
+          if phone_type == 'Phone'
+            text_after_last_digit = phone_text.match(/\d[^\d]*$/)&.to_s&.gsub(/^\d/, '')&.downcase || ''
+            if text_after_last_digit.present?
+              if text_after_last_digit.include?('mobile') || text_after_last_digit.include?('movil') || 
+                text_after_last_digit.include?('móvil') || text_after_last_digit.include?('cell')
                 phone_type = 'Mobile'
-              elsif match_text.include?('o:') || match_text.include?('office') || match_text.include?('oficina')
+              elsif text_after_last_digit.include?('office') || text_after_last_digit.include?('oficina')
                 phone_type = 'Office'
-              elsif match_text.include?('f:') || match_text.include?('fax:')
+              elsif text_after_last_digit.include?('fax')
                 phone_type = 'Fax'
-              elsif match_text.include?('direct') && match_text.include?("line") || match_text.include?('d:')
+              elsif text_after_last_digit.include?('direct') && text_after_last_digit.include?("line")
                 phone_type = 'Direct Line'
               end
-
-              phone_text = phone_text.gsub(match_text, '')
             end
+          end
 
-            if phone_text.include?("<a href")
-              #Phone is inside a link. Extract only text.
-              phone_text = phone_text.gsub(/<a[^>]*>|<\/a>/, '')
-            end
+          digits = phone_text.gsub(/[^\+|\d|\s\.|\(|\)]/, '').gsub(/(\+\s+\+)|(\++)/, '+').gsub(/\s+/, ' ').strip
+          
+          if digits.gsub(/[^\d]/, '').size > 15
+            # Too long to be a phone number, skip
+            next
+          end
 
-            
-            digits = phone_text.gsub(/[^\+|\d|\s\.|\(|\)]/, '').gsub(/(\+\s+\+)|(\++)/, '+').gsub(/\s+/, ' ').strip
-            
-            if digits.gsub(/[^\d]/, '').size > 15
-              # Too long to be a phone number, skip
-              next
-            end
-
-            begin
-              parsed_number = Phoner::Phone.parse(digits)
-              phones << {
-                type: phone_type,
-                phone_number: parsed_number.format(:europe),
-                country: PHONES_TO_COUNTRY[parsed_number.country_code]
-              }
-            rescue Exception => e
-              phones << {
-                type: phone_type,
-                phone_number: digits, #remove multiple + signs.
-                country: ''
-              }
-            end
+          begin
+            parsed_number = Phoner::Phone.parse(digits)
+            phones << {
+              type: phone_type,
+              phone_number: parsed_number.format(:europe),
+              country: PHONES_TO_COUNTRY[parsed_number.country_code]
+            }
+          rescue Exception => e
+            phones << {
+              type: phone_type,
+              phone_number: digits, #remove multiple + signs.
+              country: ''
+            }
           end
         end
       end
@@ -449,12 +490,18 @@ module EmailSignatureParser
     def get_company_name(email_address)
       
       company_name = []
-      emailAtIndex = email_address.index("@")
-      if emailAtIndex.nil?
+
+      email_domain = email_address.split("@").last&.downcase
+      unless email_domain.present?
+        return ''
+      end
+
+
+      if COMMON_EMAIL_DOMAINS.any? { |common_domain| email_domain.include?(common_domain) }
         return ''
       end
       
-      company_domain = PublicSuffix.parse(email_address[(emailAtIndex+1)..]).sld
+      company_domain = PublicSuffix.parse(email_domain).sld
       min_sim = 0.5
 
       @signature_sentences[1..3]&.each do |sentence|
@@ -482,32 +529,67 @@ module EmailSignatureParser
 
     def get_job_title()
 
-      job_title = ''
+      parsed_titles = []
       acronyms_found = []
       @signature_sentences[0..1]&.each_with_index do |sentence, index|
-      
+        if sentence[:type] != 'unknown'
+          next
+        end
+
         if sentence[:doc].include?("@") || sentence[:doc].include?("www") || sentence[:doc].include?("http")
           next
         end
 
-        found = 0
         clean_sentence = sentence[:doc].gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').strip
         splitted_downcased_words = clean_sentence.downcase.split(' ')
 
-        found += (splitted_downcased_words & JOB_TITLES[:titles]).size
+        job_titles_found = []
 
-        acronyms_found += (splitted_downcased_words & JOB_TITLES[:acronyms]).map(&:upcase)
-        acronyms_found += (splitted_downcased_words & JOB_TITLES[:single_titles]).map(&:capitalize)
-
-        if found >= 2
-          job_title = sentence[:doc]
+        splitted_downcased_words.each_with_index do |word, index|
+          if JOB_TITLES.any?(word)
+            job_titles_found << {
+              index: index,
+              word: word
+            }
+          end
         end
+
+        acronyms_found += (splitted_downcased_words & JOB_ACRONYMS).map(&:upcase)
+        if job_titles_found.size == 1
+          parsed_titles << job_titles_found.first[:word].capitalize
+        elsif job_titles_found.size > 1
+
+          cur_title = [job_titles_found.first]
+          
+          job_titles_found[1..].each do |title|
+            if title[:index] == cur_title.last[:index] + 1
+              cur_title << title
+            else
+              parsed_titles << cur_title.map{|t| t[:word].capitalize}.join(" ")
+              cur_title = [title]
+            end
+          end
+          parsed_titles << cur_title.map{|t| t[:word].capitalize}.join(" ")
+
+        end
+
       end
 
-      return {
-        title: job_title,
-        acronym: acronyms_found.join(", ")
-      }
+      job_title = {}
+      
+      if acronyms_found.size == 1
+        job_title[:acronym] = acronyms_found.first
+      elsif acronyms_found.size > 1
+        job_title[:acronyms] = acronyms_found
+      end
+
+      if parsed_titles.size == 1
+        job_title[:title] = parsed_titles.first
+      elsif parsed_titles.size > 1
+        job_title[:titles] = parsed_titles
+      end
+
+      return job_title
     end
 
     def parse_signature(name, email_address, email_body)
@@ -516,8 +598,8 @@ module EmailSignatureParser
 
       get_signature_sentences(name, email_address, email_body)
 
-      address = get_address()
       phones = get_phones()
+      address = get_address()
       links = get_links()
       job_title = get_job_title()
 
