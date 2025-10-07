@@ -26,6 +26,7 @@ module EmailSignatureParser
     JOB_TITLES = YAML.load_file(
       File.expand_path('../../../lib/email_signature_parser/data/job_titles/titles.yaml', __FILE__), symbolize_names: true
     )
+
     MEETING_DOMAINS = [
       /zoom\.us/i,
       /teams\.microsoft\.com/i,
@@ -34,66 +35,15 @@ module EmailSignatureParser
       /gotomeeting\.com/i,
       /ringcentral\.com/i
     ]
+
     def initialize
       @signature_sentences = []
-      @sentences = []
-    end
-
-    # Calculates the percentage of digits in a text, ignoring spaces and HTML links.
-    def get_digits_percentage(text)
-      text = text.gsub(/<a[^>]*>|<\/a>/, '') #remove links before counting digits
-      total_digits = text.count('0123456789')
-      total_spaces = text.count(' ')
-      
-      total_chars= text.size - total_spaces
-      if total_chars == 0
-        return {'total': 0, 'pct': 0}
-      end
-      return {'total': total_digits, 'pct': (total_digits.to_f / total_chars).round(2)}
-    end
-
-    # Merges small strings in an array to avoid single-character elements, useful for name parsing.
-    def merge_small_strings(array)
-
-      out_array = []
-      array_invalid = true
-      loops = 0
-
-      while array_invalid && loops < 100
-        out_array = []
-
-        if array.size > 1 && !array.size.even?
-          #If array is uneven, check if last elem needs merging
-          last_items = array.last(2)
-
-          should_merge = last_items.reduce(false){|acc, val| val.size == 1 || acc}
-          if should_merge
-            array = array[0..array.size - 2] + [last_items.join("")]
-          end
-        end
-
-        array.each_slice(2) do |slice|
-          should_merge = slice.reduce(false){|acc, val| val.size == 1 || acc}
-
-          if should_merge
-            out_array << slice.join("")
-          else
-            out_array += slice
-          end
-        end
-
-        array_invalid = out_array.reduce(false){|acc, val| val.size == 1 || acc} && out_array.size > 1
-        array = out_array
-        loops += 1
-      end
-
-      out_array
+      @parsed_name_from_signature = ''
     end
 
     def meeting_email?(email_body)
       MEETING_DOMAINS.any? { |regex| email_body =~ regex }
     end
-
 
     def get_signature_sentences(name, email_address, email_body)
 
@@ -117,7 +67,7 @@ module EmailSignatureParser
           next
         end
           
-        if sentence == ""
+        if sentence == "" || sentence.count('*') > 5 || sentence.count('-') > 5 || sentence.count('_') > 5
           # empty chars are breaks 
           consecutive_return_carriage += 1
         else
@@ -139,40 +89,99 @@ module EmailSignatureParser
 
       first_consecutive_carriage_returns_index = consecutive_carriages_found.first || -1
 
-      @sentences = []
+      sentences = []
 
       splitted_name = []
+      email_prefix = ""
       if name.present?
-        splitted_name = merge_small_strings(name.downcase.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').split(" "))
+        splitted_name = name.downcase.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').split(" ")
       elsif email_address.present?
-        # No name provided, try to extract from email address, in case email is like jdoe@email.com or john.doe@email.com
-        splitted_name = merge_small_strings(email_address.split("@").first.downcase.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').split(" "))
+        email_prefix = email_address.split("@").first.downcase
       end
 
       signature_start_index = -1
       found_email_index = -1
       found_name_index = -1
       email_sentences.each_with_index do |sentence, index|
-        @sentences << { isSignature: false , doc: nil, type: 'unknown' }
+        sentences << { isSignature: false , doc: nil, type: 'unknown' }
         if (sentence.include?("http") || sentence.include?("www") || index < first_consecutive_carriage_returns_index)
           # If the sentence contains an email or link, or is before the first long break, dont even bother analyzing it
           next
         end
 
         downcased_sentence = sentence.downcase
-        sentence_words = downcased_sentence.gsub(/[^\w\s\.]/, ' ').gsub(/\s+/, ' ').split(" "
-          ).filter{|w| w.size < 15}
+        sentence_words = downcased_sentence.gsub(/[^\w\s\.\@]/, ' ').gsub(/\s+/, ' ').split(" ")
         #Leave dots in sentence words. is to prevent splitting usernames like name.surname34
         #Remove words longer than 15 chars, as they are unlikely to be names
       
         if sentence_words.size < 8 && sentence_words.size > 0
           similarities = []
+
+          #Discard long words (cant be a name) and words with digits
+          filtered_words = sentence_words.filter{|w| w.size < 15 && !w.match?(/\d/)}
+
+          p " Possible names: #{filtered_words}"
           splitted_name.each do |splitted_name_word|
-            similarities << sentence_words.map {|word| word.similarity(splitted_name_word)}.max
+            similarities << filtered_words.map {|word| word.similarity(splitted_name_word)}.max
           end
-          
-          sim_max = similarities.max
-          if sim_max.present? && sim_max > 0.7
+          sim_max = similarities.max || 0
+
+          if sim_max < 0.7 && email_prefix.present?
+            # We are trying to see if a combination of the words in the sentence can match the email prefix
+
+            # Also consider common patterns in emails to match names
+            #Common email patterns
+            # {first}@company
+            # {first}{last}@company
+            # {first}.{last}@company
+            # {f}{last}@company
+            # {f}.{last}@company
+            # {first}{middle}{last}@company
+            # {first}.{middle}.{last}@company
+            # {f}.{middle}.{last}@company
+            # {f}{m}{last}@company
+            filtered_words.each_with_index do |word, wIndex|
+              #If the word starts with same letter as the searched email, build the possible names
+              wordsUntilEnd = filtered_words[(wIndex+1)..]
+
+              if word[0] == email_prefix[0] && wordsUntilEnd.size > 0
+                
+                possible_first_last_emails = [
+                  word, #first@company
+                  word + wordsUntilEnd.first, #firstlast@company
+                  word + "." + wordsUntilEnd.first, #first.last@company
+                  word[0] + wordsUntilEnd.first, #flast@company
+                  word[0] + "." + wordsUntilEnd.first, #f.last@company
+                ]
+
+                possible_first_last_emails.each do |possible_email|
+                  if possible_email == email_prefix
+                    sim_max = 1.0
+                    @parsed_name_from_signature = word.capitalize + " " + wordsUntilEnd.first.capitalize
+                    break
+                  end
+                end
+
+                if wordsUntilEnd.size > 1
+                  possible_first_middle_last_emails = [
+                    word + wordsUntilEnd.first + wordsUntilEnd[1], #firstmiddlelast@company
+                    word + "." + wordsUntilEnd.first + "." + wordsUntilEnd[1], #first.middle.last@company
+                    word[0] + "." + wordsUntilEnd.first + "." + wordsUntilEnd[1], #f.middle.last@company
+                    word[0] + wordsUntilEnd.first[0] + wordsUntilEnd[1] #fmlast@company
+                  ]
+                  possible_first_middle_last_emails.each do |possible_email|
+                    if possible_email == email_prefix
+                      sim_max = 1.0
+                      @parsed_name_from_signature = word.capitalize + " " + wordsUntilEnd.first.capitalize + " " + wordsUntilEnd[1].capitalize
+                      break
+                    end
+                  end
+                end
+              end
+            end
+          end
+
+          if sim_max > 0.7
             signature_start_index = index
             found_name_index = index
           end
@@ -209,7 +218,7 @@ module EmailSignatureParser
         end
       end
 
-      @sentences.each_with_index do |sentence, index|
+      sentences.each_with_index do |sentence, index|
         sentence[:doc] = email_sentences[index].strip
         if index == found_name_index
           sentence[:type] = 'name'
@@ -218,11 +227,11 @@ module EmailSignatureParser
         if index >= signature_start_index && (signature_end_index == -1 || index < signature_end_index)
           sentence[:isSignature] = true
           sentence[:doc] = email_sentences[index].strip
-          sentence[:digits_pct] = get_digits_percentage(email_sentences[index])
+          sentence[:digits_pct] = Utils.get_digits_percentage(email_sentences[index])
         end
       end
 
-      @signature_sentences = @sentences.filter{|s| s[:isSignature] && s[:doc].present?}
+      @signature_sentences = sentences.filter{|s| s[:isSignature] && s[:doc].present?}
     end
 
     def get_address
@@ -504,7 +513,6 @@ module EmailSignatureParser
     def parse_signature(name, email_address, email_body)
 
       @signature_sentences = []
-      @sentences = []
 
       get_signature_sentences(name, email_address, email_body)
 
@@ -516,15 +524,18 @@ module EmailSignatureParser
       parsed_name = name
 
       if parsed_name.blank?
-        # Try to extract name from the first two sentences of the signature
-        @signature_sentences[0..1].filter{|s| s[:type] == 'unknown'}.each do |sentence|
-          sentence_words = sentence[:doc].split(" ")
-          if sentence_words.size > 1 && sentence_words.size < 4 && sentence_words.reduce(true){|acc, val| val.size < 15 && acc}
-            parsed_name = sentence_words.map{|n| n.capitalize}.join(" ")
+        if @parsed_name_from_signature.present?
+          parsed_name = @parsed_name_from_signature
+        else
+          # Try to extract name from the first two sentences of the signature
+          @signature_sentences[0..1].filter{|s| s[:type] == 'unknown'}.each do |sentence|
+            sentence_words = sentence[:doc].split(" ")
+            if sentence_words.size > 1 && sentence_words.size < 4 && sentence_words.reduce(true){|acc, val| val.size < 15 && acc}
+              parsed_name = sentence_words.map{|n| n.capitalize}.join(" ")
+            end
           end
         end
       end
-
 
       parsed_data = {
         name: parsed_name,
@@ -538,7 +549,6 @@ module EmailSignatureParser
       }
 
       @signature_sentences = []
-      @sentences = []
 
       return parsed_data
     end
@@ -643,12 +653,12 @@ module EmailSignatureParser
         end
 
         if encoding.present?
-          html_part = m.decode_body.force_encoding(encoding)
+          text_part = m.decode_body.force_encoding(encoding)
         else
-          html_part = m.decode_body.force_encoding('UTF-8')
+          text_part = m.decode_body.force_encoding('UTF-8')
         end
 
-        html_part = html_part.encode('UTF-8')
+        text_part = text_part.encode('UTF-8')
 
       end
 
