@@ -73,7 +73,6 @@ module EmailSignatureParser
 
       consecutive_return_carriage = 0
       foundContent = false
-
       # Find the first consecutive empty lines that come after some content.
       email_sentences.each_with_index do |sentence, index|
 
@@ -88,19 +87,15 @@ module EmailSignatureParser
           # empty chars are breaks 
           consecutive_return_carriage += 1
         else
-          if consecutive_return_carriage >= 2
+          if consecutive_return_carriage >= 1
             consecutive_carriages_found << index - 1
           end
           consecutive_return_carriage = 0
         end
       end
 
-      if consecutive_return_carriage >= 2
-        consecutive_carriages_found << email_sentences.index(sentence) - 1
-      end
-
       if consecutive_carriages_found.size == 0
-        # No consecutive carriages found, assume no signature
+        # No consecutive carriages or separators found, assume no signature
         return
       end
 
@@ -180,11 +175,19 @@ module EmailSignatureParser
 
                 if wordsUntilEnd.size > 1
                   possible_first_middle_last_emails = [
+                    # We may be in a situation where theres a middle name but not used in the email
+                    word, #first@company
+                    word + wordsUntilEnd[1], #firstlast@company
+                    word + "." + wordsUntilEnd[1], #first.last@company
+                    word[0] + wordsUntilEnd[1], #flast@company
+                    word[0] + "." + wordsUntilEnd[1], #f.last@company
+
                     word + wordsUntilEnd.first + wordsUntilEnd[1], #firstmiddlelast@company
                     word + "." + wordsUntilEnd.first + "." + wordsUntilEnd[1], #first.middle.last@company
                     word[0] + "." + wordsUntilEnd.first + "." + wordsUntilEnd[1], #f.middle.last@company
                     word[0] + wordsUntilEnd.first[0] + wordsUntilEnd[1] #fmlast@company
                   ]
+
                   possible_first_middle_last_emails.each do |possible_email|
                     if possible_email == email_prefix
                       sim_max = 1.0
@@ -217,7 +220,7 @@ module EmailSignatureParser
         # Lets try and find the name based on the email index
         # Get closest consecutive carriage return index
         closest_consecutive_index = consecutive_carriages_found.select { |i| i < found_email_index }.max
-        if (closest_consecutive_index - found_email_index).abs < 3
+        if (closest_consecutive_index - found_email_index).abs < 8
           signature_start_index = closest_consecutive_index + 1
         end
       end
@@ -227,7 +230,8 @@ module EmailSignatureParser
       email_sentences.each_with_index do |sentence, index|
         if index >= signature_start_index 
           sentence_no_links = sentence.gsub(/<a href(.*?)\/a>/, '')
-          if (sentence_no_links.count('*') > 5 || sentence_no_links.count('-') > 5 || sentence_no_links.size >= 150)
+          if (sentence_no_links.count('*') > 5 || sentence_no_links.count('-') > 5 || sentence_no_links.size >= 150) ||
+            (sentence == "" && email_sentences[index+1] == "") # If big break, assume end of signature
             signature_end_index = index
             break
           end
@@ -243,21 +247,21 @@ module EmailSignatureParser
         if index >= signature_start_index && (signature_end_index == -1 || index < signature_end_index)
           sentence[:isSignature] = true
           sentence[:doc] = email_sentences[index].strip
-          sentence[:digits_count] = email_sentences[index].count('0123456789')
         end
       end
 
       @signature_sentences = sentences.filter{|s| s[:isSignature] && s[:doc].present?}
+      if @signature_sentences.size > 12
+        # Unlikely to be a signature if it has more than 12 lines
+        @signature_sentences = []
+      end
     end
 
     def get_address
-
       cityOrStateIndexes = []
-      cityOrStateIndex = -1
-
+      postCodeIndexes = []
       countryIndex = -1
-      postCodeIndex = -1
-      streetIndex = -1
+      streetIndexes = []
 
       @signature_sentences.each_with_index do |sentence, index|
         if sentence[:type] != 'unknown'
@@ -277,87 +281,63 @@ module EmailSignatureParser
           country: 0
         }
         
-
-        @signature_sentences[index][:address_parts] = address_parts
-
-        if (sentence[:doc].include?("@") || sentence[:doc].include?("www") || sentence[:doc].include?("http"))
-          next
-        end
-
         parsed_address = Postal::Parser.parse_address(sentence[:doc])
-        @signature_sentences[index][:parsed_address] = parsed_address
+
         parsed_address.each do |val| 
           if address_parts[val[:label]]
             address_parts[val[:label]] += 1
           end
         end
 
-        @signature_sentences[index][:address_parts] = address_parts
         if (index > 0 && (address_parts[:city] > 0 || address_parts[:state] > 0))
-          #cityOrStateIndex = index
           cityOrStateIndexes << index
         end
         if (index > 0 && address_parts[:country] > 0 && countryIndex < 0)
           countryIndex = index
           @signature_sentences[countryIndex][:type] = 'address'
         end
-        if (index > 0 && address_parts[:postcode] > 0 && postCodeIndex < 0)
-          postCodeIndex = index
+        if (index > 0 && address_parts[:postcode] > 0)
+          postCodeIndexes << index
+        end
+
+        if (address_parts[:road] > 0  && address_parts[:house] > 0) || 
+          (address_parts[:road] > 0 && address_parts[:house_number] > 0) ||
+          (address_parts[:house] > 0 && address_parts[:house_number] > 0)
+          streetIndexes << index
         end
       end
 
-
-      if cityOrStateIndexes.size > 0
-        if countryIndex > 0 
-          cityOrStateIndex = cityOrStateIndexes.min_by{|index| (countryIndex-index).abs}
-        elsif postCodeIndex > 0
-          cityOrStateIndex = cityOrStateIndexes.min_by{|index| (postCodeIndex-index).abs}
-        elsif cityOrStateIndexes.size > 0
-          cityOrStateIndex = cityOrStateIndexes.first
-        end  
-      end
-
-      @signature_sentences.each_with_index do |sentence, index|
-        if sentence[:type] != 'unknown'
-          next
+      cityOrStateIndexes.each do |cityIndex|
+        streetIndexes.each do |streetIndex|
+          if ((cityIndex - streetIndex).abs < 2)
+            @signature_sentences[cityIndex][:type] = 'address'
+            @signature_sentences[streetIndex][:type] = 'address'
+          end
         end
-
-        if (cityOrStateIndex > 0 && 
-          (@signature_sentences[index][:address_parts][:road] > 0  || 
-          @signature_sentences[index][:address_parts][:house] > 0 || 
-          @signature_sentences[index][:address_parts][:house_number] > 0) && 
-            streetIndex < 0 && (cityOrStateIndex - index).abs < 2)
-          streetIndex = index
+        if (countryIndex > 0 && (cityIndex - countryIndex).abs < 3)
+          @signature_sentences[cityIndex][:type] = 'address'
+        end
+        postCodeIndexes.each do |postCodeIndex|
+          if ((cityIndex - postCodeIndex).abs < 3)
+            @signature_sentences[cityIndex][:type] = 'address'
+            @signature_sentences[postCodeIndex][:type] = 'address'
+          end
         end
       end
 
-      if (cityOrStateIndex > 0  && (streetIndex > 0 && (cityOrStateIndex - streetIndex).abs < 2))
-        @signature_sentences[cityOrStateIndex][:type] = 'address'
-        @signature_sentences[streetIndex][:type] = 'address'
-      end
-
-      if (cityOrStateIndex > 0  && (countryIndex > 0 && (cityOrStateIndex - countryIndex).abs < 3))
-        @signature_sentences[cityOrStateIndex][:type] = 'address'
-        @signature_sentences[countryIndex][:type] = 'address'
-      end
-
-      if (cityOrStateIndex > 0  && (postCodeIndex > 0 && (cityOrStateIndex - postCodeIndex).abs < 3))
-        @signature_sentences[cityOrStateIndex][:type] = 'address'
-        @signature_sentences[postCodeIndex][:type] = 'address'
-      end
-        
       total_address_count = 0
 
       @signature_sentences.filter{|s| s[:type] == 'address'}.map{|s| total_address_count += s[:doc].size}
       if (total_address_count > 150)
+        @signature_sentences.filter{|s| s[:type] == 'address'}.each{|s| s[:type] = 'unknown'}
         return ""
       end
 
       address_text = @signature_sentences.filter{|sentence| sentence[:type] == 'address'}.map{
         |sentence| sentence[:doc].gsub(/.*?:/, ' ').gsub(/[\|><]/, ' ')}.join(", ")
 
-
       if address_text.size > 150
+        @signature_sentences.filter{|s| s[:type] == 'address'}.each{|s| s[:type] = 'unknown'}
         return ""
       end
 
@@ -370,28 +350,39 @@ module EmailSignatureParser
     def get_phones
       phones = []
       @signature_sentences[1..]&.each_with_index do |sentence, index|
-        possible_phones = []
-
-        max_consecutive_digits = Utils.max_consecutive_digits(sentence[:doc])
-
-        if max_consecutive_digits < 8 || max_consecutive_digits > 15
-          # Too few or too many consecutive digits to be a phone number, skip
+        if @signature_sentences[index+1][:type] != 'unknown'
           next
         end
-
-        phone_texts = sentence[:doc].split(/[\|●]/) #Sometimes multiple phones are in the same line separated by | or ●
-
-        @signature_sentences[index+1][:type] = 'phone'
-        phone_texts = sentence[:doc].split(/[\|●]/)
-
+        phone_texts = sentence[:doc].split(/[\|●\,]/) #Sometimes multiple phones are in the same line separated by | or ●
         phone_texts.each do |phone_text|
+          # See if phone text is an extension
+          # common patterns: ext. 1234, x1234, x.1234, ext1234
+          extension_regex = /\b(ext\.?|extension)[\.\:\s]*\d+|(?<!\w)x[\.\:\s]*\d+/i
+          extension_match = phone_text.match(extension_regex)
+          extension = nil
+          if extension_match
+            extension = extension_match[0].gsub(/[^\d]/, '')
+            phone_text = phone_text.gsub(extension_regex, '').strip
+          end
+
+          max_consecutive_digits = Utils.max_consecutive_digits(phone_text)
+          if max_consecutive_digits < 8 || max_consecutive_digits > 15
+            # Too few or too many consecutive digits to be a phone number, skip
+            if extension.present? && phones.size > 0
+              # They wrote the number like "123-123-124, ext. 1234". Assign the extension to the last phone found
+              phones.last[:extension] = extension
+            end
+            next
+          end
+
+          @signature_sentences[index+1][:type] = 'phone'
 
           if phone_text.include?("<a href")
             #Phone is inside a link. Extract only text.
             phone_text = phone_text.gsub(/<a[^>]*>|<\/a>/, '')
           end
 
-          match_before_number = phone_text.match(/.*?:|[tpmd]\./)
+          match_before_number = phone_text.match(/[^\d]*(?=\d)/i)
 
           phone_type = 'Phone'
           unless match_before_number.nil?
@@ -399,7 +390,8 @@ module EmailSignatureParser
             if match_text.include?('m:') || match_text.include?('mobile') || match_text.include?('movil') || 
               match_text.include?('móvil') || match_text.include?('c:') || match_text.include?('cell')
               phone_type = 'Mobile'
-            elsif match_text.include?('o:') || match_text.include?('office') || match_text.include?('oficina')
+            elsif match_text.include?('o:') || match_text.include?('office') || match_text.include?('oficina') ||
+              match_text.include?('work') || match_text.include?('w:') || match_text.include?('trabajo')
               phone_type = 'Office'
             elsif match_text.include?('f:') || match_text.include?('fax')
               phone_type = 'Fax'
@@ -416,7 +408,8 @@ module EmailSignatureParser
               if text_after_last_digit.include?('mobile') || text_after_last_digit.include?('movil') || 
                 text_after_last_digit.include?('móvil') || text_after_last_digit.include?('cell')
                 phone_type = 'Mobile'
-              elsif text_after_last_digit.include?('office') || text_after_last_digit.include?('oficina')
+              elsif text_after_last_digit.include?('office') || text_after_last_digit.include?('oficina') || text_after_last_digit.include?('work') ||
+                text_after_last_digit.include?('trabajo')
                 phone_type = 'Office'
               elsif text_after_last_digit.include?('fax')
                 phone_type = 'Fax'
@@ -438,14 +431,15 @@ module EmailSignatureParser
             phones << {
               type: phone_type,
               phone_number: parsed_number.format(:europe),
-              country: PHONES_TO_COUNTRY[parsed_number.country_code]
-            }
+              country: PHONES_TO_COUNTRY[parsed_number.country_code],
+              extension: extension
+            }.compact
           rescue Exception => e
             phones << {
               type: phone_type,
               phone_number: digits, #remove multiple + signs.
-              country: ''
-            }
+              extension: extension
+            }.compact
           end
         end
       end
@@ -487,94 +481,79 @@ module EmailSignatureParser
       return parsed_links
     end
 
-    def get_company_name(email_address)
+    def get_company_name_and_job_title(email_address)
       
       company_name = []
+      parsed_titles = []
+      acronyms_found = []
 
-      email_domain = email_address.split("@").last&.downcase
-      unless email_domain.present?
-        return ''
+      email_domain = email_address.split("@").last&.downcase || ""
+      company_domain = ""
+
+      unless COMMON_EMAIL_DOMAINS.any? { |common_domain| email_domain.include?(common_domain) }
+        begin
+          company_domain = PublicSuffix.parse(email_domain).sld
+        rescue Exception => e
+          # Dont care
+        end
       end
-
-
-      if COMMON_EMAIL_DOMAINS.any? { |common_domain| email_domain.include?(common_domain) }
-        return ''
-      end
-      
-      company_domain = PublicSuffix.parse(email_domain).sld
+            
       min_sim = 0.5
 
-      @signature_sentences[1..3]&.each do |sentence|
+      @signature_sentences[0..2]&.each do |sentence|
+        if sentence[:type] != 'unknown' && sentence[:type] != 'name'
+          next
+        end
+
         text = sentence[:doc].strip()
         if text.include?("@") || text.include?("www") || text.include?("http")
           next
         end
-        splitted_text = text.split(" ")
-        splitted_text.each do |word|
-          sim = word.downcase.similarity(company_domain)
-          if (sim >= min_sim)
-            if (splitted_text.size <= 3)
-              company_name = splitted_text
-              break
-            else
-              company_name << word.strip()
+
+        sections = text.split(',')
+
+        sections.each do |section|
+          clean_sentence = section.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').strip
+          splitted_text = clean_sentence.split(' ')
+
+          if company_name.empty?
+            # First attempt to see if section matches company domain, and is the company name
+            splitted_text.each do |word|
+              sim = word.downcase.similarity(company_domain)
+              if (sim >= min_sim)
+                if (splitted_text.size <= 3)
+                  company_name = splitted_text
+                  break
+                else
+                  company_name << word.strip()
+                end
+              end
+            end
+            if company_name.size > 0
+              next
             end
           end
-        end
-      end
 
-      return company_name.uniq.join(" ")
-          
-    end
+          # Now try to find job titles in the section
+          splitted_downcased_words = splitted_text.map(&:downcase)
+          job_titles_found = []
 
-    def get_job_title()
-
-      parsed_titles = []
-      acronyms_found = []
-      @signature_sentences[0..1]&.each_with_index do |sentence, index|
-        if sentence[:type] != 'unknown'
-          next
-        end
-
-        if sentence[:doc].include?("@") || sentence[:doc].include?("www") || sentence[:doc].include?("http")
-          next
-        end
-
-        clean_sentence = sentence[:doc].gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').strip
-        splitted_downcased_words = clean_sentence.downcase.split(' ')
-
-        job_titles_found = []
-
-        splitted_downcased_words.each_with_index do |word, index|
-          if JOB_TITLES.any?(word)
-            job_titles_found << {
-              index: index,
-              word: word
-            }
-          end
-        end
-
-        acronyms_found += (splitted_downcased_words & JOB_ACRONYMS).map(&:upcase)
-        if job_titles_found.size == 1
-          parsed_titles << job_titles_found.first[:word].capitalize
-        elsif job_titles_found.size > 1
-
-          cur_title = [job_titles_found.first]
-          
-          job_titles_found[1..].each do |title|
-            if title[:index] == cur_title.last[:index] + 1
-              cur_title << title
-            else
-              parsed_titles << cur_title.map{|t| t[:word].capitalize}.join(" ")
-              cur_title = [title]
+          splitted_downcased_words.each_with_index do |word, index|
+            if JOB_TITLES.any?(word)
+              job_titles_found << {
+                index: index,
+                word: word
+              }
             end
           end
-          parsed_titles << cur_title.map{|t| t[:word].capitalize}.join(" ")
-
+          acronyms_found += (splitted_downcased_words & JOB_ACRONYMS).map(&:upcase)
+          if job_titles_found.size > 0
+            parsed_titles << splitted_text.join(" ")
+          end
         end
 
       end
-
+      
       job_title = {}
       
       if acronyms_found.size == 1
@@ -589,7 +568,8 @@ module EmailSignatureParser
         job_title[:titles] = parsed_titles
       end
 
-      return job_title
+      return [company_name.uniq.join(" "), job_title]
+          
     end
 
     def parse_signature(name, email_address, email_body)
@@ -598,10 +578,10 @@ module EmailSignatureParser
 
       get_signature_sentences(name, email_address, email_body)
 
-      phones = get_phones()
       address = get_address()
+      phones = get_phones()
       links = get_links()
-      job_title = get_job_title()
+      company_name, job_title = get_company_name_and_job_title(email_address)
 
       parsed_name = name
 
@@ -627,10 +607,8 @@ module EmailSignatureParser
         links: links,
         job_title: job_title,
         text: @signature_sentences.map{|sentence| sentence[:doc]}.join("\n"),
-        company_name: get_company_name(email_address)
+        company_name: company_name,
       }
-
-      @signature_sentences = []
 
       return parsed_data
     end
@@ -638,7 +616,7 @@ module EmailSignatureParser
     def split_in_threads(text)
 
       # Regex for reply markers. Handles English and Spanish.
-      marker_regex = /(De:\s.+@+.+)|(From:\s.+@+.+)/i
+      marker_regex = /(from|de):\s.+@+.+/i
 
       marker_indexes = text.enum_for(:scan, marker_regex).map { Regexp.last_match.begin(0) }
       messages = []
@@ -654,6 +632,15 @@ module EmailSignatureParser
       end
 
       return messages
+    end
+
+    def remove_forwarded_content(text)
+      unless text.present?
+        return text
+      end
+      # Regex for forwarded message markers. Handles English and Spanish.
+      forwarded_regex = /-{5,}.*?(forwarded|reenviado|original).*?-{5,}/i
+      text.split(forwarded_regex).first&.strip
     end
 
     def parse_email_html(raw_html)
@@ -762,13 +749,12 @@ module EmailSignatureParser
         raise "No email body"
       end
 
-     # basename = File.basename(file_path)
-     # File.write("test_output_#{basename}.txt", text_part)
-
       messages = split_in_threads(text_part)
 
       # Only parse the first message in the thread, as its the most recent one and the one sent by the from address
-      parse_signature(name, email_address.downcase, messages.first)
+      signature = parse_signature(name, email_address.downcase, remove_forwarded_content(messages.first))
+      signature[:signature_datetime] = m.date.to_s
+      return signature
     end
 
     def parse_from_html(from, email_html_body)
@@ -784,7 +770,7 @@ module EmailSignatureParser
       parsed_text = parse_email_html(email_html_body)
       messages = split_in_threads(parsed_text)
 
-      parse_signature(name, email_address.downcase, messages.first)
+      parse_signature(name, email_address.downcase, remove_forwarded_content(messages.first))
     end
 
     def parse_from_text(from, email_body)
@@ -795,7 +781,7 @@ module EmailSignatureParser
       name, email_address = extract_name_and_email(from)
       messages = split_in_threads(email_body)
 
-      parse_signature(name, email_address.downcase, messages.first)
+      parse_signature(name, email_address.downcase, remove_forwarded_content(messages.first))
     end
   end
 end

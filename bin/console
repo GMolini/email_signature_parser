@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "email_signature_parser"
+
+# Add reload method for manual reloading
+def reload!
+  # Remove existing constants
+  Object.send(:remove_const, :EmailSignatureParser) if defined?(EmailSignatureParser)
+  
+  # Clear loaded features
+  $LOADED_FEATURES.select { |f| f.include?('email_signature_parser') }.each do |f|
+    $LOADED_FEATURES.delete(f)
+  end
+  
+  # Require the main gem file again
+  require "email_signature_parser"
+  
+  puts "🔄 Reloaded EmailSignatureParser gem"
+rescue => e
+  puts "❌ Error reloading gem: #{e.message}"
+end
+
+puts "🚀 EmailSignatureParser console started"
+puts "Use 'reload!' to reload the gem after making changes"
+
+
+require "pry"
+Pry.start(__FILE__)
