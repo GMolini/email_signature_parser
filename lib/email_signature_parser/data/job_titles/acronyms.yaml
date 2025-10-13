@@ -1,465 +1,440 @@
 ---
-- facaai
-- facoog
-- ffarcs
-- faaai
-- faafp
-- faaos
-- faapm
-- faccp
-- facep
-- facog
-- facpm
-- facsm
-- faota
-- fapha
-- aemsn
-- aocn
-- apmc
-- apnp
-- aprn
-- arnp
-- arrt
-- ascp
-- asnc
-- aspo
-- arts
-- bcls
-- bdsc
-- bhyg
-- bphn
-- bsed
-- bseh
-- bsph
-- work
-- bvms
-- canp
-- capa
-- post
-- carn
-- cccn
-- cces
-- ccns
-- ccrn
-- ccsp
-- ccst
-- cctc
-- cctn
-- cddn
-- cdms
-- cetn
-- cfcn
-- cfnp
-- cfrn
-- cgrn
-- ches
-- chpn
-- chrn
-- chuc
-- clnc
-- cmcn
-- cnaa
-- cnmt
-- cnnp
-- cnrn
-- cnsn
-- cocn
-- cohn
-- coma
-- corn
-- cota
-- cpan
-- cpdn
-- cpft
-- cphq
-- cpna
-- cpnl
-- cpnp
-- cpon
-- cpsn
-- crtt
-- ctrn
-- cunp
-- curn
-- cwcn
-- ddsc
-- dmsc
-- dnsc
-- latc
-- lcce
-- lcpc
-- lcsw
-- lmsw
-- lncc
-- lrcp
-- lrcs
-- mbbs
-- micn
-- mpas
-- mrad
-- mrcp
-- mrcs
-- msee
-- mseh
-- msls
-- mssw
-- ncsn
-- ognp
-- pals
-- pccn
-- pcns
-- phrn
-- rdcs
-- rdms
-- rept
-- rhia
-- rhit
-- rncs
-- rnfa
-- roub
-- back
-- chem
-- comp
-- engr
-- mech
-- prof
-- asst
-- aasa
-- pres
-- supr
-- supe
-- aams
-- acct
-- attd
-- devl
-- dsgn
-- elec
-- hrbp
-- insp
-- libr
-- mach
-- mktg
-- oper
-- prin
-- prog
-- spec
-- tech
-- trne
-- trnr
-- c.b.
-- c.j.
-- chro
-- ciso
-- dphn
-- drnp
-- drph
-- dvms
-- enpc
-- faan
-- faao
-- faap
-- facc
-- facd
-- face
-- facg
-- facp
-- facr
-- facs
-- faen
-- fagd
-- fama
-- fapa
-- fcap
-- fccm
-- fcps
-- fica
-- ficc
-- fics
-- acls
-- acrn
-- alnc
-- amsc
-- aid
-- nco
-- law
-- alt
-- apn
-- art
-- asn
-- atc
-- bch
-- bds
-- bhs
-- bms
-- bsm
-- bsn
-- bsw
-- cbe
-- cbi
-- cce
-- ccm
-- ccp
-- cda
-- cdn
-- cen
-- cfn
-- cgn
-- cgt
-- chb
-- chd
-- chn
-- cic
-- cla
-- cls
-- clt
-- cma
-- cna
-- cne
-- cni
-- cnm
-- cnn
-- cno
-- cnp
-- cns
-- cpn
-- crn
-- crt
-- csn
-- cst
-- ctn
-- cua
-- cvn
-- dch
-- dcp
-- ddr
-- dds
-- dmd
-- dme
-- dmt
-- dmv
-- dnc
-- dne
-- dnp
-- dns
-- don
-- dos
-- dph
-- lat
-- ldn
-- ldo
-- lnc
-- lpc
-- lrn
-- lsn
-- lvn
-- mba
-- mch
-- mds
-- med
-- mft
-- mhe
-- mhn
-- mhs
-- mls
-- mlt
-- mpa
-- mph
-- mpt
-- mrl
-- msc
-- msd
-- msn
-- msw
-- mta
-- nct
-- nic
-- nmt
-- nnp
-- npc
-- npp
-- ocn
-- ocs
-- onc
-- ota
-- otc
-- otl
-- otr
-- phd
-- phn
-- pre
-- pnp
-- pta
-- rda
-- rdh
-- rma
-- rna
-- rnc
-- rnp
-- rph
-- rpn
-- rpt
-- rra
-- rrt
-- rtr
-- rvt
-- sbb
-- scd
-- sct
-- sen
-- shn
-- sls
-- spn
-- svn
-- tnp
-- tns
-- vmd
-- wcc
-- dev
-- eng
-- swe
-- avp
-- amb
-- eam
-- hrm
-- cpo
-- evp
-- sgt
-- adv
-- agt
-- apr
-- cfp
-- csm
-- csr
-- fac
-- int
-- lec
-- mkg
-- mkt
-- pro
-- rep
-- alj
-- arb
-- mag
-- cao
-- ceo
-- cdo
-- cfo
-- cto
-- cio
-- cso
-- clo
-- cmo
-- coo
-- cpa
-- crm
-- dir
-- lpn
-- emt
-- gyn
-- ehs
-- iii
-- aqa
-- nss
-- dsc
-- dsw
-- dvm
-- dvr
-- dvs
-- edd
-- enp
-- fds
-- ffa
-- ipn
-- lac
-- aat
-- aas
-- acp
-- adn
-- anp
-- c2b
-- bus
-- dog
-- esl
-- adm
-- air
-- key
-- gis
-- sde
-- web
-- ski
-- ifs
-- lab
-- mri
-- efl
-- day
-- ops
-- for
-- ae
-- as
-- ba
-- bc
-- bm
-- bn
-- bs
-- cb
-- cd
-- cm
-- co
-- cp
-- cs
-- da
-- dc
-- dm
-- dn
-- do
-- dp
-- lc
-- lm
-- ma
-- mb
-- mc
-- md
-- me
-- mn
-- ms
-- mt
-- mv
-- nd
-- np
-- od
-- pa
-- pd
-- rd
-- rn
-- rt
-- sc
-- sh
-- sm
-- sn
-- st
-- sv
-- vt
-- be
-- ce
-- jr
-- ea
-- va
-- aa
-- ad
-- pm
-- mp
-- vp
-- gc
-- it
-- sr
-- ag
-- b.
-- am
-- ed
-- vc
-- dj
-- ap
-- ds
-- en
-- et
-- hr
+# Executive Titles
+- CEO    # Chief Executive Officer
+- COO    # Chief Operating Officer
+- CFO    # Chief Financial Officer
+- CTO    # Chief Technology Officer
+- CIO    # Chief Information Officer
+- CHRO   # Chief Human Resources Officer
+- CMO    # Chief Marketing Officer
+- CPO    # Chief Product Officer
+- CSO    # Chief Strategy Officer
+- CDO    # Chief Data Officer
+- CRO    # Chief Revenue Officer
+- CLO    # Chief Legal Officer
+- CCO    # Chief Compliance Officer
+- CISO   # Chief Information Security Officer
+- EVP    # Executive Vice President
+- SVP    # Senior Vice President
+- AVP    # Assistant Vice President
+- VP     # Vice President
+- Pres   # President
+- Dir    # Director
+- MGR    # Manager
+- Mgr    # Manager
+- GM     # General Manager
+- AGM    # Assistant General Manager
+- DGM    # Deputy General Manager
+
+# Academic Degrees
+- PhD    # Doctor of Philosophy
+- Ph.D   # Doctor of Philosophy
+- Ph.D.  # Doctor of Philosophy
+- MD     # Doctor of Medicine
+- M.D    # Doctor of Medicine
+- M.D.   # Doctor of Medicine
+- JD     # Juris Doctor
+- J.D    # Juris Doctor
+- J.D.   # Juris Doctor
+- EdD    # Doctor of Education
+- Ed.D   # Doctor of Education
+- DDS    # Doctor of Dental Surgery
+- DMD    # Doctor of Dental Medicine
+- DVM    # Doctor of Veterinary Medicine
+- DSc    # Doctor of Science
+- D.Sc   # Doctor of Science
+- DSW    # Doctor of Social Work
+- DNP    # Doctor of Nursing Practice
+- PharmD # Doctor of Pharmacy
+- MBA    # Master of Business Administration
+- M.B.A  # Master of Business Administration
+- M.B.A. # Master of Business Administration
+- MPA    # Master of Public Administration
+- MPH    # Master of Public Health
+- MSc    # Master of Science
+- M.Sc   # Master of Science
+- M.Sc.  # Master of Science
+- MS     # Master of Science
+- M.S    # Master of Science
+- M.S.   # Master of Science
+- MSW    # Master of Social Work
+- MSN    # Master of Science in Nursing
+- MFT    # Master of Family Therapy
+- MEd    # Master of Education
+- M.Ed   # Master of Education
+- M.Ed.  # Master of Education
+- MA     # Master of Arts
+- M.A    # Master of Arts
+- M.A.   # Master of Arts
+- ME     # Master of Engineering
+- M.E    # Master of Engineering
+- MT     # Master of Teaching
+- MPT    # Master of Physical Therapy
+- MLS    # Master of Library Science
+- BSc    # Bachelor of Science
+- B.Sc   # Bachelor of Science
+- B.Sc.  # Bachelor of Science
+- BA     # Bachelor of Arts
+- B.A    # Bachelor of Arts
+- B.A.   # Bachelor of Arts
+- BS     # Bachelor of Science
+- B.S    # Bachelor of Science
+- B.S.   # Bachelor of Science
+- BBA    # Bachelor of Business Administration
+- BSN    # Bachelor of Science in Nursing
+- BSW    # Bachelor of Social Work
+- BE     # Bachelor of Engineering
+- B.E    # Bachelor of Engineering
+- BSEE   # Bachelor of Science in Electrical Engineering
+- BSME   # Bachelor of Science in Mechanical Engineering
+- BSCE   # Bachelor of Science in Civil Engineering
+- BSCS   # Bachelor of Science in Computer Science
+
+# Professional Certifications
+- CPA    # Certified Public Accountant
+- C.P.A  # Certified Public Accountant
+- C.P.A. # Certified Public Accountant
+- CFA    # Chartered Financial Analyst
+- CFP    # Certified Financial Planner
+- PMP    # Project Management Professional
+- CISSP  # Certified Information Systems Security Professional
+- CISA   # Certified Information Systems Auditor
+- CISM   # Certified Information Security Manager
+- PMI    # Project Management Institute
+- SHRM   # Society for Human Resource Management
+- SPHR   # Senior Professional in Human Resources
+- PHR    # Professional in Human Resources
+- CHRP   # Certified Human Resources Professional
+- CCP    # Certified Compensation Professional
+- GCIH   # GIAC Certified Incident Handler
+- GSEC   # GIAC Security Essentials
+- RHCE   # Red Hat Certified Engineer
+- MCSE   # Microsoft Certified Systems Engineer
+- CCNA   # Cisco Certified Network Associate
+- CCNP   # Cisco Certified Network Professional
+- CCIE   # Cisco Certified Internetwork Expert
+
+# Medical & Healthcare
+- RN     # Registered Nurse
+- R.N    # Registered Nurse
+- R.N.   # Registered Nurse
+- LPN    # Licensed Practical Nurse
+- L.P.N  # Licensed Practical Nurse
+- NP     # Nurse Practitioner
+- N.P    # Nurse Practitioner
+- PA     # Physician Assistant
+- P.A    # Physician Assistant
+- RT     # Respiratory Therapist
+- R.T    # Respiratory Therapist
+- EMT    # Emergency Medical Technician
+- RD     # Registered Dietitian
+- R.D    # Registered Dietitian
+- OT     # Occupational Therapist
+- O.T    # Occupational Therapist
+- PT     # Physical Therapist
+- P.T    # Physical Therapist
+- ST     # Speech Therapist
+- S.T    # Speech Therapist
+- MT     # Medical Technologist
+- M.T    # Medical Technologist
+- MLT    # Medical Laboratory Technician
+- CNA    # Certified Nursing Assistant
+- LVN    # Licensed Vocational Nurse
+- CNS    # Clinical Nurse Specialist
+- CRNA   # Certified Registered Nurse Anesthetist
+- FNP    # Family Nurse Practitioner
+- ANP    # Adult Nurse Practitioner
+- GNP    # Gerontological Nurse Practitioner
+- PNP    # Pediatric Nurse Practitioner
+- WHNP   # Women's Health Nurse Practitioner
+
+# Engineering & Technology
+- PE     # Professional Engineer
+- P.E    # Professional Engineer
+- P.E.   # Professional Engineer
+- FE     # Fundamentals of Engineering
+- EIT    # Engineer in Training
+- SE     # Software Engineer
+- SWE    # Software Engineer
+- Dev    # Developer
+- Eng    # Engineer
+- Arch   # Architect
+- Sys    # Systems
+- Net    # Network
+- DBA    # Database Administrator
+- SA     # Systems Administrator
+- IT     # Information Technology
+- I.T    # Information Technology
+- IS     # Information Systems
+- CS     # Computer Science
+- C.S    # Computer Science
+- ECE    # Electrical and Computer Engineering
+- ME     # Mechanical Engineering
+- M.E    # Mechanical Engineering
+- CE     # Civil Engineering
+- C.E    # Civil Engineering
+- ChE    # Chemical Engineering
+- IE     # Industrial Engineering
+- I.E    # Industrial Engineering
+- AE     # Aerospace Engineering
+- A.E    # Aerospace Engineering
+
+# Academic Titles
+- Prof   # Professor
+- Prof.  # Professor
+- Asst   # Assistant
+- Asst.  # Assistant
+- Assoc  # Associate
+- Assoc. # Associate
+- Adj    # Adjunct
+- Adj.   # Adjunct
+- Emer   # Emeritus
+- Emer.  # Emeritus
+- Lect   # Lecturer
+- Lect.  # Lecturer
+- Instr  # Instructor
+- Instr. # Instructor
+- Res    # Researcher
+- Sci    # Scientist
+
+# Specific Professional Acronyms
+- FACAAI
+- FACOOG
+- FFARCS
+- FAAAI
+- FAAFP
+- FAAOS
+- FAAPM
+- FACCP
+- FACEP
+- FACOG
+- FACPM
+- FACSM
+- FAOTA
+- FAPHA
+- AEMSN
+- AOCN
+- APMC
+- APNP
+- APRN
+- ARNP
+- ARRT
+- ASCP
+- ASNC
+- ASPO
+- ARTS
+- BCLS
+- BDSC
+- BHYG
+- BPHN
+- BSED
+- BSEH
+- BSPH
+- BVMS
+- CANP
+- CAPA
+- CARN
+- CCCN
+- CCES
+- CCNS
+- CCRN
+- CCSP
+- CCST
+- CCTC
+- CCTN
+- CDDN
+- CDMS
+- CETN
+- CFCN
+- CFNP
+- CFRN
+- CGRN
+- CHES
+- CHPN
+- CHRN
+- CHUC
+- CLNC
+- CMCN
+- CNAA
+- CNMT
+- CNNP
+- CNRN
+- CNSN
+- COCN
+- COHN
+- COMA
+- CORN
+- COTA
+- CPAN
+- CPDN
+- CPFT
+- CPHQ
+- CPNA
+- CPNL
+- CPNP
+- CPON
+- CPSN
+- CRTT
+- CTRN
+- CUNP
+- CURN
+- CWCN
+- DDSC
+- DMSC
+- DNSC
+- LATC
+- LCCE
+- LCPC
+- LCSW
+- LMSW
+- LNCC
+- LRCP
+- LRCS
+- MBBS
+- MICN
+- MPAS
+- MRAD
+- MRCP
+- MRCS
+- MSEE
+- MSEH
+- MSLS
+- MSSW
+- NCSN
+- OGNP
+- PALS
+- PCCN
+- PCNS
+- PHRN
+- RDCS
+- RDMS
+- REPT
+- RHIA
+- RHIT
+- RNCS
+- RNFA
+- FAAN
+- FAAO
+- FAAP
+- FACC
+- FACD
+- FACE
+- FACG
+- FACP
+- FACR
+- FACS
+- FAEN
+- FAGD
+- FAMA
+- FAPA
+- FCAP
+- FCCM
+- FCPS
+- FICA
+- FICC
+- FICS
+- ACLS
+- ACRN
+- ALNC
+- AMSC
+- BCH
+- BDS
+- BHS
+- BMS
+- BSM
+- CBE
+- CBI
+- CCE
+- CCM
+- CDA
+- CDN
+- CEN
+- CFN
+- CGN
+- CGT
+- CHB
+- CHD
+- CHN
+- CIC
+- CLA
+- CLS
+- CLT
+- CMA
+- CNE
+- CNI
+- CNM
+- CNN
+- CNO
+- CNP
+- CPN
+- CRN
+- CRT
+- CSN
+- CST
+- CTN
+- CUA
+- CVN
+- DCH
+- DCP
+- DDR
+- DME
+- DMT
+- DMV
+- DNC
+- DNE
+- DNS
+- DON
+- DOS
+- DPH
+- LDN
+- LDO
+- LNC
+- LPC
+- LRN
+- LSN
+- MCH
+- MDS
+- MHE
+- MHN
+- MHS
+- MTA
+- NCT
+- NIC
+- NMT
+- NNP
+- NPC
+- NPP
+- OCN
+- OCS
+- ONC
+- OTA
+- OTC
+- OTL
+- OTR
+- PHN
+- PTA
+- RDA
+- RDH
+- RMA
+- RNA
+- RNC
+- RNP
+- RPH
+- RPN
+- RPT
+- RRA
+- RRT
+- RTR
+- RVT
+- SBB
+- SCD
+- SCT
+- SEN
+- SHN
+- SLS
+- SPN
+- SVN
+- TNP
+- TNS
+- VMD
+- WCC

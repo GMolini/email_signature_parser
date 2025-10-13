@@ -75,7 +75,7 @@ module EmailSignatureParser
 
       if name == :li
         @parsed_text << "\n"
-        if @lists.last[:list_type] == :ol
+        if  @lists.last && @lists.last[:list_type] == :ol
           @lists.last[:ordered_list_level] += 1
         end
       end
@@ -106,6 +106,10 @@ module EmailSignatureParser
     def attrs_done()
       if @current_element == :li
         current_list = @lists.last
+        if current_list.nil?
+          #sometimes we encounter a <li> outside of a list, so we just ignore it
+          return
+        end
         if @lists.size > 1
           # We are inside a nested list, so we need to indent
           @parsed_text << " " * 2 * (@lists.size - 1)
