@@ -8,7 +8,7 @@ module EmailSignatureParser
 
   class Parser
 
-    SOCIAL_MEDIA_URLS = ['instagram', 'twitter', 'facebook', 'linkedin', 'youtube', 'tiktok', 'bsky']
+    SOCIAL_MEDIA_URLS = ['instagram', 'x', 'twitter', 'facebook', 'linkedin', 'youtube', 'tiktok', 'bsky']
 
     PHONES_TO_COUNTRY = {"1"=>"US/CA", "7"=>"KZ", "20"=>"EG",  "27"=>"ZA",  "30"=>"GR",  "31"=>"NL",  "32"=>"BE",  "33"=>"FR",  "34"=>"ES",  "36"=>"HU", "39"=>"IT",
       "40"=>"RO", "41"=>"CH", "43"=>"AT", "44"=>"GB", "45"=>"DK", "46"=>"SE", "47"=>"NO", "48"=>"PL", "49"=>"DE", "51"=>"PE", "52"=>"MX", "53"=>"CU",
@@ -59,6 +59,27 @@ module EmailSignatureParser
       'zoho.com'
     ]
 
+COMMON_COMPANY_ENDINGS = [
+  # English suffixes
+  'inc', 'incorporated', 'corp', 'corporation', 'company', 'co', 'ltd', 'limited', 
+  'llc', 'lp', 'limited partnership', 'plc', 'public limited company',
+  'enterprises', 'group', 'holdings', 'international', 'intl', 'worldwide',
+  'global', 'associates', 'partners', 'consulting', 'services', 'solutions',
+  'systems', 'technologies', 'tech', 'industries', 'manufacturing', 'mfg',
+  
+  # Spanish suffixes
+  'sa', 'sociedad anónima', 'sl', 'sociedad limitada', 'srl', 'sociedad de responsabilidad limitada',
+  'sc', 'sociedad colectiva', 'scp', 'sociedad civil particular', 'scpp', 'sociedad civil público privada',
+  'sad', 'sociedad anónima deportiva', 'sal', 'sociedad anónima laboral', 'sll', 'sociedad limitada laboral',
+  'sau', 'sociedad anónima unipersonal', 'slu', 'sociedad limitada unipersonal',
+  'sociedad', 'compañía', 'cia', 'empresa', 'corporación', 'grupo', 'holding',
+  'internacional', 'mundial', 'global', 'asociados', 'socios', 'consultoría',
+  'servicios', 'soluciones', 'sistemas', 'tecnologías', 'industrias', 'industrial',
+  'ltda', 'limitada',
+  # International/European suffixes (commonly used in Spanish-speaking countries)
+  'gmbh', 'ag', 'bv', 'nv', 'oy', 'ab', 'sas', 'spa', 'pte', 'kg', 'kgaa',
+]
+
     def initialize
       @signature_sentences = []
       @parsed_name_from_signature = ''
@@ -69,6 +90,10 @@ module EmailSignatureParser
     end
 
     def get_signature_sentences(name, email_address, email_body)
+
+      if email_body.nil? || email_body.empty?
+        raise InvalidEmailError, "No email body provided"
+      end
 
       email_sentences = email_body.split(/\t|\n|\r/).map{|s| s.strip}
 
@@ -111,9 +136,9 @@ module EmailSignatureParser
 
       splitted_name = []
       email_prefix = ""
-      if name.present?
+      if !name.empty?
         splitted_name = name.downcase.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').split(" ")
-      elsif email_address.present?
+      elsif !email_address.empty?
         email_prefix = email_address.split("@").first.downcase
       end
 
@@ -143,7 +168,7 @@ module EmailSignatureParser
           end
           sim_max = similarities.max || 0
 
-          if sim_max < 0.7 && email_prefix.present?
+          if sim_max < 0.7 && !email_prefix.empty?
             # We are trying to see if a combination of the words in the sentence can match the email prefix
 
             # Also consider common patterns in emails to match names
@@ -256,7 +281,7 @@ module EmailSignatureParser
         end
       end
 
-      @signature_sentences = sentences.filter{|s| s[:isSignature] && s[:doc].present?}
+      @signature_sentences = sentences.filter{|s| s[:isSignature] && !s[:doc].nil? && !s[:doc].empty?}
       if @signature_sentences.size > 12
         # Unlikely to be a signature if it has more than 12 lines
         @signature_sentences = []
@@ -273,7 +298,6 @@ module EmailSignatureParser
         if sentence[:type] != 'unknown'
           next
         end
-
 
         address_parts = {
           house: 0,
@@ -351,7 +375,7 @@ module EmailSignatureParser
       #Replace multiple commas with a single comma. or a comma preceded by a space
       address_text = address_text.gsub(/\s+/, ' ').gsub(/,+|\ ,/, ',')
 
-      return address_text.lstrip
+      return address_text.strip
     end
 
     def get_phones
@@ -372,14 +396,14 @@ module EmailSignatureParser
           extension_match = phone_text.match(extension_regex)
           extension = nil
           if extension_match
-            extension = extension_match[0].gsub(/[^\d]/, '')
+            extension = extension_match[0].gsub(/[^\d]/, '').strip
             phone_text = phone_text.gsub(extension_regex, '').strip
           end
 
           max_consecutive_digits = Utils.max_consecutive_digits(phone_text)
           if max_consecutive_digits < 8 || max_consecutive_digits > 15
             # Too few or too many consecutive digits to be a phone number, skip
-            if extension.present? && phones.size > 0
+            if !extension.nil? && !extension.empty? && phones.size > 0
               # They wrote the number like "123-123-124, ext. 1234". Assign the extension to the last phone found
               phones.last[:extension] = extension
             end
@@ -387,7 +411,7 @@ module EmailSignatureParser
           end
 
           @signature_sentences[index+1][:type] = 'phone'
-          match_before_number = phone_text.match(/[^\d\+\(\)]*(?=\d)/i)
+          match_before_number = phone_text.match(/[^\d\+\(\)]*(?=[\d\+\(])/i)
           phone_type = 'Phone'
           unless match_before_number.nil?
             match_text = match_before_number[0].downcase()
@@ -403,12 +427,12 @@ module EmailSignatureParser
               phone_type = 'Direct Line'
             end
 
-            phone_text = phone_text.gsub(match_text, '')
+            phone_text = phone_text.gsub(match_before_number[0], '')
           end
 
           if phone_type == 'Phone'
             text_after_last_digit = phone_text.match(/\d[^\d]*$/)&.to_s&.gsub(/^\d/, '')&.downcase || ''
-            if text_after_last_digit.present?
+            if !text_after_last_digit.empty?
               if text_after_last_digit.include?('mobile') || text_after_last_digit.include?('movil') || 
                 text_after_last_digit.include?('móvil') || text_after_last_digit.include?('cell')
                 phone_type = 'Mobile'
@@ -424,7 +448,7 @@ module EmailSignatureParser
           end
 
           # Get digits including ., spaces, (, ), +
-          digits = phone_text.gsub(/[^\+|\d|\s\.|\(|\)]/, '').gsub(/(\+\s+\+)|(\++)/, '+').gsub(/\s+/, ' ').strip
+          digits = phone_text.gsub(/[^\+\d\s\.\(\)-]/, '').gsub(/(\+\s+\+)|(\++)/, '+').gsub(/\s+/, ' ').strip
           digit_count = digits.gsub(/[^\d]/, '').size
 
           if digit_count < 8 || digit_count > 15
@@ -432,21 +456,14 @@ module EmailSignatureParser
             next
           end
 
-          begin
-            parsed_number = Phoner::Phone.parse(digits)
-            phones << {
-              type: phone_type,
-              phone_number: parsed_number.format(:europe),
-              country: PHONES_TO_COUNTRY[parsed_number.country_code],
-              extension: extension
-            }.compact
-          rescue Exception => e
-            phones << {
-              type: phone_type,
-              phone_number: digits, #remove multiple + signs.
-              extension: extension
-            }.compact
-          end
+          country_code = digits.match(/^\+?(\d{1,3})/)&.captures&.first
+
+          phones << {
+            type: phone_type,
+            phone_number: digits,
+            country: PHONES_TO_COUNTRY[country_code],
+            extension: extension
+          }.compact
         end
       end
 
@@ -465,13 +482,15 @@ module EmailSignatureParser
         links_in_sentence = sentence[:doc].scan(/(?<=(href=")).*?(?=")/).map {$&}
         for link in links_in_sentence
           if link.include?('mailto:')
-            sentence[:type] = 'mailto'
+            next
           else
-            sentence[:type] = 'link'
             isSocialMedia = false
             SOCIAL_MEDIA_URLS.each do |social_media|
-              if link.include?(social_media)
-                parsed_links[:social_media][social_media] = link.include?("http") ? link : "https://#{link}"
+              domain = link.downcase.match(/https?:\/\/(www\.)?([^\/]+)/)&.captures&.last || ""
+              domain = domain.split('.').first  # Remove TLD
+
+              if social_media == domain
+                parsed_links[:social_media][social_media.to_sym] = link.include?("http") ? link : "https://#{link}"
                 isSocialMedia = true
                 break
               end
@@ -522,11 +541,19 @@ module EmailSignatureParser
           clean_sentence = section.gsub(/[^\w\s]/, ' ').gsub(/\s+/, ' ').strip
           splitted_text = clean_sentence.split(' ')
 
-          if company_name.empty?
+          if splitted_text.any? { |word| COMMON_COMPANY_ENDINGS.any? { |ending| word.downcase == ending } }
+            company_name = [section]
+          end
+
+          if company_name.size == 0 && !company_domain.empty?
             # First attempt to see if section matches company domain, and is the company name
+            
             sim = clean_sentence.downcase.gsub(/\s+/, '').similarity(company_domain)
             if (sim >= min_sim)
               company_name = [section]
+              if sentence[:type] == 'unknown'
+                sentence[:type] = 'company_name_or_job_title'
+              end
             end
 
             if company_name.size == 0
@@ -534,14 +561,24 @@ module EmailSignatureParser
                 sim = word.downcase.similarity(company_domain)
                 if sim == 1.0
                   company_name << word.strip()
+                  if sentence[:type] == 'unknown'
+                    sentence[:type] = 'company_name_or_job_title'
+                  end
                   break
                 end
+
                 if (sim >= min_sim)
                   if (splitted_text.size <= 3)
                     company_name = splitted_text
+                    if sentence[:type] == 'unknown'
+                      sentence[:type] = 'company_name_or_job_title'
+                    end
                     break
                   else
                     company_name << word.strip()
+                    if sentence[:type] == 'unknown'
+                      sentence[:type] = 'company_name_or_job_title'
+                    end
                   end
                 end
               end
@@ -562,14 +599,23 @@ module EmailSignatureParser
                 index: index,
                 word: word
               }
+              if sentence[:type] == 'unknown'
+                sentence[:type] = 'company_name_or_job_title'
+              end
             end
           end
-          acronyms_found += (section.gsub(/\s+/, ' ').strip.split(' ') & JOB_ACRONYMS)
+
+          acronyms = (section.gsub(/\s+/, ' ').strip.split(' ') & JOB_ACRONYMS)
+          if acronyms.size > 0
+            acronyms_found += acronyms
+            if sentence[:type] == 'unknown'
+              sentence[:type] = 'company_name_or_job_title'
+            end
+          end
           if job_titles_found.size > 0
             parsed_titles << section.gsub(/\s+/, ' ').strip
           end
         end
-
       end
       
       job_title = {}
@@ -602,8 +648,8 @@ module EmailSignatureParser
 
       parsed_name = name
 
-      if parsed_name.blank?
-        if @parsed_name_from_signature.present?
+      if !parsed_name.nil? && parsed_name.empty?
+        if !@parsed_name_from_signature.empty?
           parsed_name = @parsed_name_from_signature
         else
           # Try to extract name from the first two sentences of the signature
@@ -654,7 +700,7 @@ module EmailSignatureParser
     end
 
     def remove_forwarded_content(text)
-      unless text.present?
+      if text.nil? || text.empty?
         return text
       end
       # Regex for forwarded message markers. Handles English and Spanish.
@@ -689,10 +735,13 @@ module EmailSignatureParser
     def extract_name_and_email(from)
       name = ""
       email_address = ""
+      if from.nil? || from.empty?
+        return name, email_address
+      end
 
       if from.include?("<") && from.include?(">")
         # From likely to include name and email address Name <email@example.com>
-        name = from.split("<").first.strip
+        name = from.split("<")&.first&.strip&.gsub((/["']/), '') || ""
         email_address = from.match(/<(.+?)>/)&.captures&.first || ""
       else
         email_address = from.strip
@@ -713,7 +762,7 @@ module EmailSignatureParser
       # Sometimes when there are special characters in the email, the mail gem fails to parse it correctly
       file_content = File.open(file_path, 'rb') { |f| f.read }
       encoding = file_content[/charset="([^"]+)"/, 1] || file_content[/charset=([^;\s]+)/, 1]
-      if encoding.present?
+      if !encoding.nil? && !encoding.empty?
         begin 
           file_content = file_content.force_encoding(encoding).encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
         rescue Encoding::UndefinedConversionError, Encoding::InvalidByteSequenceError => e
@@ -724,7 +773,7 @@ module EmailSignatureParser
 
       m = Mail.new(file_content)
       from = m.header["From"]&.field&.value
-      unless from.present?
+      if from.nil? && from.empty?
         raise InvalidFromError, "No From field in email"
       end
 
@@ -739,14 +788,14 @@ module EmailSignatureParser
 
       if m.multipart?
         if m.parts.size > 0
-          if m.html_part.present? 
-            if m.html_part.content_type_parameters && m.html_part.content_type_parameters['charset'].present?
+          if !m.html_part.nil?
+            if m.html_part.content_type_parameters && !m.html_part.content_type_parameters['charset'].nil? && !m.html_part.content_type_parameters['charset'].empty?
               encoding = m.html_part.content_type_parameters['charset']
-            elsif m.html_part.charset.present?
+            elsif !m.html_part.charset.nil? && !m.html_part.charset.empty?
               encoding = m.html_part.charset
             end
-              
-            if encoding.present?
+
+            if !encoding.nil? && !encoding.empty?
               html_part = m.html_part.decode_body.force_encoding(encoding)
             else
               html_part = m.html_part.decode_body.force_encoding('UTF-8')
@@ -773,7 +822,7 @@ module EmailSignatureParser
         end
       end
 
-      unless text_part.present?
+      unless !text_part.nil? && !text_part.empty?
         raise InvalidEmailError, "No email body"
       end
 
@@ -790,29 +839,39 @@ module EmailSignatureParser
     end
 
     def parse_from_html(from, email_html_body)
-      unless from.present?
+      unless !from.nil? && !from.empty?
         raise InvalidFromError, "No from provided"
       end
 
-      unless email_html_body.present?
+      unless !email_html_body.nil? && !email_html_body.empty?
         raise InvalidEmailError, "No email body provided"
       end
+      
 
       name, email_address = extract_name_and_email(from)
       parsed_text = parse_email_html(email_html_body)
+
+      if meeting_email?(parsed_text)
+        raise InvalidEmailError, "Email appears to be a meeting invite"
+      end
+
       messages = split_in_threads(parsed_text)
 
       parse_signature(name, email_address.downcase, remove_forwarded_content(messages.first))
     end
 
     def parse_from_text(from, email_body)
-      unless from.present?
+      unless !from.nil? && !from.empty?
         raise InvalidFromError, "No from provided"
       end
 
+      if meeting_email?(email_body)
+        raise InvalidEmailError, "Email appears to be a meeting invite"
+      end
+      
       name, email_address = extract_name_and_email(from)
       messages = split_in_threads(email_body)
-
+      
       parse_signature(name, email_address.downcase, remove_forwarded_content(messages.first))
     end
   end

@@ -99,3 +99,7 @@ It will return a hash with whatever could be extracted from the signature
   "company_name": "TestCompany Ltd"
 }
 ```
+
+## Enron Data
+
+Ive tested this library, among other things using the enron data. You can get the data [data](https://www.cs.cmu.edu/~enron/). Running `rake process_enron_data[path_to_eml_files,output_path]` will process all emails and generate json files (with a copy of the original email) for all signatures found.

@@ -4,6 +4,9 @@ require 'bundler/setup'
 require 'rake/testtask'
 require 'rspec/core/rake_task'
 
+# Load all task files from the tasks directory
+Dir.glob('tasks/*.rake').each { |r| load r }
+
 desc "Build a gem file"
 task :build do
   system "gem build email_signature_parser.gemspec"
