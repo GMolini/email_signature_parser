@@ -6,7 +6,6 @@ require 'mail'
 require 'ox'
 require 'ruby_postal/parser'
 require 'public_suffix'
-require 'phone'
 require 'yaml'
 require 'cgi'
 

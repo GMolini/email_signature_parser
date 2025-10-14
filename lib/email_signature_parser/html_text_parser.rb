@@ -47,7 +47,8 @@ module EmailSignatureParser
         }
       end
 
-      if name == :a && @parsing_link == true
+      if name == :a
+        @parsing_link = true
         @link_text = ""
         @link_href = ""
       end
@@ -139,7 +140,7 @@ module EmailSignatureParser
         @link_text << value
         return
       end
-      unless value.blank? || @discard
+      unless value.nil? || value.empty? || @discard
         if value.include?("-----------------------------")
           @parsed_text << "\n-------------------------------------------------------------------------------------------------------------------------------------------------\n"
         else

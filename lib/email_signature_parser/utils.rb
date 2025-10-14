@@ -6,7 +6,7 @@ module EmailSignatureParser
       
       # Replace gaps of 1-2 non-digit characters between digits with empty string
       # This effectively makes digits separated by small gaps appear consecutive
-      processed_text = text.gsub(/(\d)[^\d]{1,2}(?=\d)/, '\1')
+      processed_text = text.gsub(/(\d)[^\d\w]{1,2}(?=\d)/, '\1')
       
       # Find all sequences of consecutive digits
       digit_sequences = processed_text.scan(/\d+/)
