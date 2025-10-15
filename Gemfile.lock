@@ -37,6 +37,7 @@ GEM
       guard-compat (~> 1.1)
       rspec (>= 2.99.0, < 4.0)
     io-console (0.8.1)
+    json (2.14.0)
     listen (3.9.0)
       rb-fsevent (~> 0.10, >= 0.10.3)
       rb-inotify (~> 0.9, >= 0.9.10)
@@ -108,6 +109,7 @@ DEPENDENCIES
   facets (~> 3.1.0)
   guard
   guard-rspec
+  json
   listen (~> 3.0)
   mail (~> 2.8.1)
   ox (~> 2.14)

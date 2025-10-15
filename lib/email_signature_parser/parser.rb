@@ -59,26 +59,35 @@ module EmailSignatureParser
       'zoho.com'
     ]
 
-COMMON_COMPANY_ENDINGS = [
-  # English suffixes
-  'inc', 'incorporated', 'corp', 'corporation', 'company', 'co', 'ltd', 'limited', 
-  'llc', 'lp', 'limited partnership', 'plc', 'public limited company',
-  'enterprises', 'group', 'holdings', 'international', 'intl', 'worldwide',
-  'global', 'associates', 'partners', 'consulting', 'services', 'solutions',
-  'systems', 'technologies', 'tech', 'industries', 'manufacturing', 'mfg',
-  
-  # Spanish suffixes
-  'sa', 'sociedad anónima', 'sl', 'sociedad limitada', 'srl', 'sociedad de responsabilidad limitada',
-  'sc', 'sociedad colectiva', 'scp', 'sociedad civil particular', 'scpp', 'sociedad civil público privada',
-  'sad', 'sociedad anónima deportiva', 'sal', 'sociedad anónima laboral', 'sll', 'sociedad limitada laboral',
-  'sau', 'sociedad anónima unipersonal', 'slu', 'sociedad limitada unipersonal',
-  'sociedad', 'compañía', 'cia', 'empresa', 'corporación', 'grupo', 'holding',
-  'internacional', 'mundial', 'global', 'asociados', 'socios', 'consultoría',
-  'servicios', 'soluciones', 'sistemas', 'tecnologías', 'industrias', 'industrial',
-  'ltda', 'limitada',
-  # International/European suffixes (commonly used in Spanish-speaking countries)
-  'gmbh', 'ag', 'bv', 'nv', 'oy', 'ab', 'sas', 'spa', 'pte', 'kg', 'kgaa',
-]
+    COMMON_COMPANY_ENDINGS = [
+      # English suffixes
+      'inc', 'incorporated', 'corp', 'corporation', 'company', 'co', 'ltd', 'limited', 
+      'llc', 'lp', 'limited partnership', 'plc', 'public limited company',
+      'enterprises', 'group', 'holdings', 'international', 'intl', 'worldwide',
+      'global', 'associates', 'partners', 'consulting', 'services', 'solutions',
+      'systems', 'technologies', 'tech', 'industries', 'manufacturing', 'mfg',
+      
+      # Spanish suffixes
+      'sa', 'sociedad anónima', 'sl', 'sociedad limitada', 'srl', 'sociedad de responsabilidad limitada',
+      'sc', 'sociedad colectiva', 'scp', 'sociedad civil particular', 'scpp', 'sociedad civil público privada',
+      'sad', 'sociedad anónima deportiva', 'sal', 'sociedad anónima laboral', 'sll', 'sociedad limitada laboral',
+      'sau', 'sociedad anónima unipersonal', 'slu', 'sociedad limitada unipersonal',
+      'sociedad', 'compañía', 'cia', 'empresa', 'corporación', 'grupo', 'holding',
+      'internacional', 'mundial', 'global', 'asociados', 'socios', 'consultoría',
+      'servicios', 'soluciones', 'sistemas', 'tecnologías', 'industrias', 'industrial',
+      'ltda', 'limitada',
+      # International/European suffixes (commonly used in Spanish-speaking countries)
+      'gmbh', 'ag', 'bv', 'nv', 'oy', 'ab', 'sas', 'spa', 'pte', 'kg', 'kgaa',
+    ]
+
+    MAX_SIGNATURE_LINES = 12
+    MAX_SENTENCE_LENGTH = 150
+    MAX_NAME_WORD_LENGTH = 15
+    MIN_PHONE_DIGITS = 8
+    MAX_PHONE_DIGITS = 15
+    COMPANY_NAME_SIMILARITY_THRESHOLD = 0.6
+    NAME_SIMILARITY_THRESHOLD = 0.7
+
 
     def initialize
       @signature_sentences = []
@@ -161,14 +170,14 @@ COMMON_COMPANY_ENDINGS = [
           similarities = []
 
           #Discard long words (cant be a name) and words with digits
-          filtered_words = sentence_words.filter{|w| w.size < 15 && !w.match?(/\d/)}
+          filtered_words = sentence_words.filter{|w| w.size < MAX_NAME_WORD_LENGTH && !w.match?(/\d/)}
 
           splitted_name.each do |splitted_name_word|
             similarities << filtered_words.map {|word| word.similarity(splitted_name_word)}.max
           end
           sim_max = similarities.max || 0
 
-          if sim_max < 0.7 && !email_prefix.empty?
+          if sim_max < NAME_SIMILARITY_THRESHOLD && !email_prefix.empty?
             # We are trying to see if a combination of the words in the sentence can match the email prefix
 
             # Also consider common patterns in emails to match names
@@ -231,7 +240,7 @@ COMMON_COMPANY_ENDINGS = [
             end
           end
 
-          if sim_max > 0.7
+          if sim_max > NAME_SIMILARITY_THRESHOLD
             signature_start_index = index
             found_name_index = index
           end
@@ -261,7 +270,7 @@ COMMON_COMPANY_ENDINGS = [
       email_sentences.each_with_index do |sentence, index|
         if index >= signature_start_index 
           sentence_no_links = sentence.gsub(/<a href(.*?)\/a>/, '')
-          if (sentence_no_links.count('*') > 5 || sentence_no_links.count('-') > 5 || sentence_no_links.size >= 150) ||
+          if (sentence_no_links.count('*') > 5 || sentence_no_links.count('-') > 5 || sentence_no_links.size >= MAX_SENTENCE_LENGTH) ||
             (sentence == "" && email_sentences[index+1] == "") # If big break, assume end of signature
             signature_end_index = index
             break
@@ -282,7 +291,7 @@ COMMON_COMPANY_ENDINGS = [
       end
 
       @signature_sentences = sentences.filter{|s| s[:isSignature] && !s[:doc].nil? && !s[:doc].empty?}
-      if @signature_sentences.size > 12
+      if @signature_sentences.size > MAX_SIGNATURE_LINES
         # Unlikely to be a signature if it has more than 12 lines
         @signature_sentences = []
       end
@@ -367,7 +376,7 @@ COMMON_COMPANY_ENDINGS = [
       address_text = @signature_sentences.filter{|sentence| sentence[:type] == 'address'}.map{
         |sentence| sentence[:doc].gsub(/<a href(.*?)\/a>/, '').gsub(/.*?:/, ' ').gsub(/[\|><]/, ' ')}.join(", ")
 
-      if address_text.size > 150
+      if address_text.size > MAX_SENTENCE_LENGTH
         @signature_sentences.filter{|s| s[:type] == 'address'}.each{|s| s[:type] = 'unknown'}
         return ""
       end
@@ -401,7 +410,7 @@ COMMON_COMPANY_ENDINGS = [
           end
 
           max_consecutive_digits = Utils.max_consecutive_digits(phone_text)
-          if max_consecutive_digits < 8 || max_consecutive_digits > 15
+          if max_consecutive_digits < MIN_PHONE_DIGITS || max_consecutive_digits > MAX_PHONE_DIGITS
             # Too few or too many consecutive digits to be a phone number, skip
             if !extension.nil? && !extension.empty? && phones.size > 0
               # They wrote the number like "123-123-124, ext. 1234". Assign the extension to the last phone found
@@ -451,7 +460,7 @@ COMMON_COMPANY_ENDINGS = [
           digits = phone_text.gsub(/[^\+\d\s\.\(\)-]/, '').gsub(/(\+\s+\+)|(\++)/, '+').gsub(/\s+/, ' ').strip
           digit_count = digits.gsub(/[^\d]/, '').size
 
-          if digit_count < 8 || digit_count > 15
+          if digit_count < MIN_PHONE_DIGITS || digit_count > MAX_PHONE_DIGITS
             # Too small or long to be a phone number, skip
             next
           end
@@ -523,8 +532,6 @@ COMMON_COMPANY_ENDINGS = [
         end
       end
             
-      min_sim = 0.6
-
       @signature_sentences[0..2]&.each do |sentence|
         if sentence[:type] != 'unknown' && sentence[:type] != 'name'
           next
@@ -549,7 +556,7 @@ COMMON_COMPANY_ENDINGS = [
             # First attempt to see if section matches company domain, and is the company name
             
             sim = clean_sentence.downcase.gsub(/\s+/, '').similarity(company_domain)
-            if (sim >= min_sim)
+            if (sim >= COMPANY_NAME_SIMILARITY_THRESHOLD)
               company_name = [section]
               if sentence[:type] == 'unknown'
                 sentence[:type] = 'company_name_or_job_title'
@@ -567,7 +574,7 @@ COMMON_COMPANY_ENDINGS = [
                   break
                 end
 
-                if (sim >= min_sim)
+                if (sim >= COMPANY_NAME_SIMILARITY_THRESHOLD)
                   if (splitted_text.size <= 3)
                     company_name = splitted_text
                     if sentence[:type] == 'unknown'
@@ -655,7 +662,7 @@ COMMON_COMPANY_ENDINGS = [
           # Try to extract name from the first two sentences of the signature
           @signature_sentences[0..1].filter{|s| s[:type] == 'unknown'}.each do |sentence|
             sentence_words = sentence[:doc].split(" ")
-            if sentence_words.size > 1 && sentence_words.size < 4 && sentence_words.reduce(true){|acc, val| val.size < 15 && acc}
+            if sentence_words.size > 1 && sentence_words.size < 4 && sentence_words.reduce(true){|acc, val| val.size < MAX_NAME_WORD_LENGTH && acc}
               parsed_name = sentence_words.map{|n| n.capitalize}.join(" ")
             end
           end
