@@ -62,17 +62,16 @@ module EmailSignatureParser
     COMMON_COMPANY_ENDINGS = [
       # English suffixes
       'inc', 'incorporated', 'corp', 'corporation', 'company', 'co', 'ltd', 'limited', 
-      'llc', 'lp', 'limited partnership', 'plc', 'public limited company',
+      'llc', 'lp', 'partnership', 'plc', 'public',
       'enterprises', 'group', 'holdings', 'international', 'intl', 'worldwide',
       'global', 'associates', 'partners', 'consulting', 'services', 'solutions',
       'systems', 'technologies', 'tech', 'industries', 'manufacturing', 'mfg',
       
       # Spanish suffixes
-      'sa', 'sociedad anónima', 'sl', 'sociedad limitada', 'srl', 'sociedad de responsabilidad limitada',
-      'sc', 'sociedad colectiva', 'scp', 'sociedad civil particular', 'scpp', 'sociedad civil público privada',
-      'sad', 'sociedad anónima deportiva', 'sal', 'sociedad anónima laboral', 'sll', 'sociedad limitada laboral',
-      'sau', 'sociedad anónima unipersonal', 'slu', 'sociedad limitada unipersonal',
-      'sociedad', 'compañía', 'cia', 'empresa', 'corporación', 'grupo', 'holding',
+      'sa', 'sociedad', 'anónima', 'sl', 'srl', 'responsabilidad', 'limitada',
+      'sc', 'scp', 'colectiva', 'civil', 'particular', 'scpp', 'público', 'privada',
+      'sad', 'deportiva', 'sal', 'laboral', 'sll',
+      'sau', 'unipersonal', 'slu', 'compañía', 'cia', 'empresa', 'corporación', 'grupo', 'holding',
       'internacional', 'mundial', 'global', 'asociados', 'socios', 'consultoría',
       'servicios', 'soluciones', 'sistemas', 'tecnologías', 'industrias', 'industrial',
       'ltda', 'limitada',
@@ -625,20 +624,11 @@ module EmailSignatureParser
         end
       end
       
-      job_title = {}
+      job_title = {
+        titles: parsed_titles,
+        acronyms: acronyms_found
+      }
       
-      if acronyms_found.size == 1
-        job_title[:acronym] = acronyms_found.first
-      elsif acronyms_found.size > 1
-        job_title[:acronyms] = acronyms_found
-      end
-
-      if parsed_titles.size == 1
-        job_title[:title] = parsed_titles.first
-      elsif parsed_titles.size > 1
-        job_title[:titles] = parsed_titles
-      end
-
       return [company_name.uniq.join(" "), job_title]
     end
 

@@ -96,10 +96,10 @@ module EmailSignatureParser
         @parsed_text << "\n-------------------------------------------------------------------------------------------------------------------------------------------------\n"
       end
 
-      if (@current_element == :ol && name == :start)
+      if (@current_element == :ol && name == :start && !@lists.last.nil?)
         @lists.last[:ordered_list_level] = value.to_i
       end
-      if (@current_element == :ol && name == :type)
+      if (@current_element == :ol && name == :type && !@lists.last.nil?)
         @lists.last[:ordered_list_type] = value
       end
     end
