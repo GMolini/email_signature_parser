@@ -1,6 +1,6 @@
 # EmailSignatureParser
 
-A Ruby gem for parsing email signatures. The gem tries to find the signature based on the name, if available, or email address and try to extract as much information as it can from the 
+A Ruby gem for parsing email signatures. The gem tries to find the signature based on the name, if available, or email address and try to extract as much information as it can
 
 ## Prerequisites
 
@@ -92,8 +92,8 @@ It will return a hash with whatever could be extracted from the signature
     ]
   },
   "job_title": {
-    "title": "",
-    "acronym": "CEO"
+    "titles": ["Sales Marketing VP"],
+    "acronyms": ["CEO"]
   },
   "text": "Text of the signature",
   "company_name": "TestCompany Ltd"
