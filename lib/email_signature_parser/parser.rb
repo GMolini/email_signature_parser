@@ -843,7 +843,11 @@ module EmailSignatureParser
       unless !email_html_body.nil? && !email_html_body.empty?
         raise InvalidEmailError, "No email body provided"
       end
-      
+
+      if from.downcase.include?("reply") || from.downcase.include?("mailer-daemon")
+        raise InvalidFromError, "No valid From address"
+      end
+
 
       name, email_address = extract_name_and_email(from)
       parsed_text = parse_email_html(email_html_body)
@@ -860,6 +864,10 @@ module EmailSignatureParser
     def parse_from_text(from, email_body)
       unless !from.nil? && !from.empty?
         raise InvalidFromError, "No from provided"
+      end
+
+      if from.downcase.include?("reply") || from.downcase.include?("mailer-daemon")
+        raise InvalidFromError, "No valid From address"
       end
 
       if meeting_email?(email_body)
