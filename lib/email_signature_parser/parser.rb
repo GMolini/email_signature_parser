@@ -97,6 +97,13 @@ module EmailSignatureParser
       MEETING_DOMAINS.any? { |regex| email_body =~ regex }
     end
 
+    def remove_bold_and_header_markings(text)
+      return "" if text.nil? || text.empty?
+      text = text.gsub("*", "") # remove bold markings
+      text = text.gsub(/^#+\s*/, "") # remove header markings
+      text
+    end
+
     def get_signature_sentences(name, email_address, email_body)
 
       if email_body.nil? || email_body.empty?
@@ -383,7 +390,7 @@ module EmailSignatureParser
       #Replace multiple commas with a single comma. or a comma preceded by a space
       address_text = address_text.gsub(/\s+/, ' ').gsub(/,+|\ ,/, ',')
 
-      return address_text.strip
+      return remove_bold_and_header_markings(address_text).strip
     end
 
     def get_phones
@@ -541,6 +548,8 @@ module EmailSignatureParser
           next
         end
 
+        text = remove_bold_and_header_markings(text)
+
         sections = text.split(',')
 
         sections.each do |section|
@@ -619,7 +628,7 @@ module EmailSignatureParser
             end
           end
           if job_titles_found.size > 0
-            parsed_titles << section.gsub(/\s+/, ' ').strip
+            parsed_titles << section.gsub(/\s+/, ' ').gsub('*', '').strip
           end
         end
       end
@@ -659,8 +668,10 @@ module EmailSignatureParser
         end
       end
 
+
+
       parsed_data = {
-        name: parsed_name,
+        name: remove_bold_and_header_markings(parsed_name),
         email_address: email_address,
         address: address,
         phones: phones,
@@ -719,9 +730,10 @@ module EmailSignatureParser
         smart: true,
         mode:   :generic,
         effort: :tolerant,
+        convert_special: false,
       }
       input = StringIO.new(content)
-      text_handler = HtmlTextParser.new()
+      text_handler = HtmlToMarkdownParser.new()
  
       Ox.sax_html(text_handler, input, options)
       text_handler.postprocess
