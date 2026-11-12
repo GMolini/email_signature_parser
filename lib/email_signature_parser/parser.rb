@@ -7,6 +7,38 @@ module EmailSignatureParser
   class InvalidFromError < ParseError; end
 
   class Parser
+    # Matches the start of a quoted/forwarded reply block. Patterns observed in samples:
+    #
+    # 1. Markdown bold Outlook headers (most common — HTML emails converted to markdown):
+    #      **De:** Name / **From:** Name
+    #    These appear after a blank line, optionally preceded by a long dash separator line.
+    #
+    # 2. Long dash separator variants followed by **De:**/**From:**:
+    #      -----...-----   (plain dashes, 40+ chars)
+    #      -----...-----   (then blank line)  then **De:** ...
+    #
+    # 3. Forwarded/original message banners:
+    #      ---------- Forwarded message ---------
+    #      ------------------- Mensaje original -------------------
+    #      --------Cita original---------
+    #
+    # 4. Gmail "On <date>, <name> wrote:" / Spanish "El <fecha> escribió:"
+    #
+    # 5. Plain-text (non-HTML) emails: bare "De: ..." / "From: ..." at line start
+    THREADS_MARKER_REGEX = /
+      (?:^-{5,}[^\n]*\n[ \t]*\n?)?
+      (?:
+        \*\*(?:De|From|Enviado\s+de)\s*:\*\*
+        |
+        (?:^|\n)(?:De|From):\s+\S
+        |
+        ^-{5,}\s*(?:Forwarded\s+message|original)
+        |
+        ^On\s+\S[^\n]+wrote:\s*\n
+        |
+        ^El\s+\S[^\n]+escribi[oó]:\s*\n
+      )
+    /imx
 
     SOCIAL_MEDIA_URLS = ['instagram', 'x', 'twitter', 'facebook', 'linkedin', 'youtube', 'tiktok', 'bsky']
 
@@ -686,25 +718,21 @@ module EmailSignatureParser
 
     def split_in_threads(text)
 
-      # Regex for reply markers. Handles English and Spanish.
-      # (from|de):\s.*@+.+) matches from followed by an email address
-      # (-{5,}\s*?^(from|de):\s+\w+) matches lines that start with ----- followed by from and a name
-      marker_regex = /((from|de):\s.*@+.+)|(-{5,}\s*?^(from|de):\s+\w+)/i
+      return [] if text.blank?
 
-      marker_indexes = text.enum_for(:scan, marker_regex).map { Regexp.last_match.begin(0) }
+      marker_indexes = text.enum_for(:scan, THREADS_MARKER_REGEX).map { Regexp.last_match.begin(0) }
       messages = []
       last_index = 0
 
       marker_indexes.each do |marker_index|
-        messages << text[last_index...marker_index].strip
+        segment = text[last_index...marker_index].strip
+        messages << segment unless segment.empty?
         last_index = marker_index
       end
 
-      if last_index < text.size
-        messages << text[last_index..].strip
-      end
+      messages << text[last_index..].strip if last_index < text.size
+      messages.reject(&:empty?)
 
-      return messages
     end
 
     def remove_forwarded_content(text)
