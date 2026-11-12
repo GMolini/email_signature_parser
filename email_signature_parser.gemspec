@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 Gem::Specification.new do |spec|
   spec.name          = 'email_signature_parser'
-  spec.version       = '0.1.4'
+  spec.version       = '0.1.5'
   spec.authors       = ['Guillermo Molini']
   spec.email         = ['guillermo.molini@gmail.com']
 
