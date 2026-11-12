@@ -10,7 +10,7 @@ require 'yaml'
 require 'cgi'
 
 require_relative "email_signature_parser/parser"
-require_relative "email_signature_parser/html_text_parser"
+require_relative "email_signature_parser/html_to_markdown_parser"
 require_relative "email_signature_parser/utils"
 
 module EmailSignatureParser
